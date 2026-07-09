@@ -1,27 +1,44 @@
 # Per-agent model routing (PRD §7 Model Routing Strategy, research.md §3)
 # Swapping a model is a one-line change here — no code change required
 # (resolves PRD Open Question 6).
+#
+# `providers` holds each provider's connection config; `api_key_env` names the
+# env var tools/model_router.py reads the key from (never the key itself —
+# same "path, not value" discipline as tools/secrets.py, just sourced from
+# the process environment/.env instead of GCP Secret Manager for this
+# platform-level model credential).
+#
+# `fallback` is optional per role — only orchestrator has a real one today
+# (Groq, since NVIDIA NIM's free tier caps at 40 req/min). Other roles have
+# no fallback because tools/model_router.call_with_fallback isn't wired up
+# for them yet; add one here the day that changes.
+
+providers:
+  nvidia:
+    base_url: https://integrate.api.nvidia.com/v1
+    api_key_env: NVIDIA_API_KEY
+  groq:
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+  ollama:
+    base_url: http://localhost:11434  # local, no auth
+    api_key_env: null
 
 orchestrator:
-  primary: deepseek-v3.2
-  fallback: groq-llama-3.3-70b
+  primary: {provider: nvidia, model: nemotron-3-ultra-550b-a55b}
+  fallback: {provider: groq, model: llama-3.3-70b}
 
 planner:
-  primary: minimax-m3
-  fallback: deepseek-v3.2
+  primary: {provider: nvidia, model: "minimax/minimax-m3"}
 
 booking:
-  primary: deepseek-v3.2
-  fallback: groq-llama-3.3-70b
+  primary: {provider: nvidia, model: "deepseek-ai/deepseek-v4-flash"}
 
 memory:
-  primary: glm-4.7-flash
-  fallback: deepseek-v3.2
+  primary: {provider: nvidia, model: "z-ai/glm-5.2"}
 
 scraper_flights:
-  primary: deepseek-v3.2
-  fallback: claude-haiku-4-5
+  primary: {provider: ollama, model: "gemma4:12b"}
 
 scraper_airbnb:
-  primary: deepseek-v3.2
-  fallback: claude-haiku-4-5
+  primary: {provider: ollama, model: "gemma4:12b"}

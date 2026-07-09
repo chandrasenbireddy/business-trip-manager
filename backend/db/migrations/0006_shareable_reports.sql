@@ -17,3 +17,10 @@ ALTER TABLE shareable_itinerary_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shareable_itinerary_reports FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON shareable_itinerary_reports
     USING (tenant_id = current_setting('app.tenant_id', true));
+
+-- 0003_app_role.sql's "ALL TABLES IN SCHEMA public" grant is a one-time
+-- snapshot — it already ran before this table existed, so btm_app needs its
+-- own grant here. Every migration that creates a new table needs this line;
+-- found the hard way when a fresh-DB run of test_cost_and_report.py hit
+-- InsufficientPrivilegeError on this exact table.
+GRANT SELECT, INSERT, UPDATE ON shareable_itinerary_reports TO btm_app;

@@ -27,18 +27,32 @@ the asyncpg pool — the small default exists so the test suite (which
 re-inits the pool per test) never exhausts Postgres's connection limit. A
 real deployment under concurrent tenant load should override both.
 
+### Model routing
+
+`models.yaml` + `tools/model_router.py` — NVIDIA NIM is the primary provider
+for orchestrator/planner/booking/memory (`NVIDIA_API_KEY`); Groq is
+orchestrator's only fallback today, for when NIM's free tier hits its 40
+req/min cap (`GROQ_API_KEY`). The flights/Airbnb scrapers (browser-use) route
+to a local Ollama vision model (`gemma4:12b`) instead — no API key, but
+`ollama serve` with that model pulled must be running locally. Swapping any
+role's model/provider is a `models.yaml` edit, never a code change.
+
 ## Local development
 
 ```bash
-cp .env.example .env  # fill in BTM_SESSION_SECRET, BTM_DATABASE_URL
+cp .env.example .env  # fill in BTM_SESSION_SECRET, BTM_DATABASE_URL, NVIDIA_API_KEY, GROQ_API_KEY
 pip install -e ".[dev]"
 pytest
 ruff check .
 ```
 
-Run migrations in order: `0001_initial.sql`, `0002_rls.sql`, then `0003_app_role.sql`
-(creates the `btm_app` role — set its password via `psql -v btm_app_password=...`,
-never hardcode it).
+Run every migration in order: `0001_initial.sql` … `0006_shareable_reports.sql`.
+`0003_app_role.sql` creates the `btm_app` role (set its password via
+`psql -v btm_app_password=...`, never hardcode it) and grants it privileges
+on every table that exists *at that point* — any later migration that adds a
+table (e.g. `0006`) must include its own `GRANT ... TO btm_app` line, or the
+app role gets `InsufficientPrivilegeError` on a table RLS otherwise allows it
+to use.
 
 Most tests run without a database. The ones that don't (`test_tenant_isolation.py`,
 and any HTTP-level test that creates a real session) need `TEST_DATABASE_URL`

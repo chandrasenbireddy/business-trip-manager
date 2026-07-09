@@ -3,8 +3,15 @@
 import math
 
 from browser_use import Agent as BrowserAgent
+from browser_use.llm.ollama.chat import ChatOllama
 
 from agents.base import traced
+from tools.model_router import client_config
+
+
+def _browser_llm() -> ChatOllama:
+    cfg = client_config("scraper_airbnb")
+    return ChatOllama(model=cfg["model"], host=cfg["base_url"])
 
 
 async def _run_browser_search(destination: str, checkin: str, checkout: str, notes: str, broaden: bool) -> list[dict]:
@@ -13,7 +20,7 @@ async def _run_browser_search(destination: str, checkin: str, checkout: str, not
         task += f" The traveler said: {notes!r} — take that into account."
     if broaden:
         task += " No results at the exact dates — widen the search to +/- 2 days and a larger radius."
-    browser_agent = BrowserAgent(task=task)
+    browser_agent = BrowserAgent(task=task, llm=_browser_llm())
     return await browser_agent.run()
 
 

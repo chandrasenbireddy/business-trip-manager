@@ -1,8 +1,15 @@
 """Flights scraper: browser-use against Google Flights/Kayak (NFR-02: retry once then error)."""
 
 from browser_use import Agent as BrowserAgent
+from browser_use.llm.ollama.chat import ChatOllama
 
 from agents.base import traced
+from tools.model_router import client_config
+
+
+def _browser_llm() -> ChatOllama:
+    cfg = client_config("scraper_flights")
+    return ChatOllama(model=cfg["model"], host=cfg["base_url"])
 
 
 async def _run_browser_search(
@@ -23,7 +30,7 @@ async def _run_browser_search(
         task += f" The traveler said: {notes!r} — take that into account."
     if broaden:
         task += " No results at the exact dates — widen the search to +/- 2 days."
-    browser_agent = BrowserAgent(task=task)
+    browser_agent = BrowserAgent(task=task, llm=_browser_llm())
     return await browser_agent.run()
 
 
