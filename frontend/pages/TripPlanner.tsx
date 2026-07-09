@@ -4,6 +4,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { BookingProgress } from "../components/BookingProgress";
 import { CategoryProgress } from "../components/CategoryProgress";
 import { ItinerarySummary } from "../components/ItinerarySummary";
+import { ManualFallback } from "../components/ManualFallback";
+import { RejectionPrompt } from "../components/RejectionPrompt";
 import { SwipeCard } from "../components/SwipeCard";
 import { useSession } from "../hooks/useSession";
 import { useTripStream } from "../hooks/useTripStream";
@@ -19,6 +21,11 @@ export default function TripPlanner() {
 
   const calendarConflict = events.find((e) => e.type === "calendar_conflict");
   const bookingSteps = events.filter((e) => e.type === "booking_progress");
+  // Most recent manual_fallback per category — a later re-search recovering
+  // from a fallback (shouldn't normally happen, but) supersedes the earlier one.
+  const fallbackByCategory = Object.fromEntries(
+    events.filter((e) => e.type === "manual_fallback").map((e: any) => [e.category, e.best_options])
+  );
 
   async function startTrip() {
     const res = await fetch("/trips", {
@@ -38,6 +45,16 @@ export default function TripPlanner() {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ decision }),
+    });
+    refresh();
+  }
+
+  async function submitRejection(category: string, reason: string) {
+    await fetch(`/trips/${sessionId}/categories/${category}/research`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ reason }),
     });
     refresh();
   }
@@ -68,26 +85,21 @@ export default function TripPlanner() {
         </div>
       )}
 
-      <CategoryProgress
-        categories={session.categories.map((c) => ({
-          name: c.name,
-          status: c.options.some((o: any) => o.decision === "selected")
-            ? "selected"
-            : c.options.length > 0 && c.options.every((o: any) => o.decision === "rejected")
-              ? "all_rejected"
-              : "selecting",
-        }))}
-      />
+      <CategoryProgress categories={session.categories.map((c: any) => ({ name: c.name, status: c.status }))} />
 
       {session.status === "in_progress" &&
-        session.categories.map((c) => (
+        session.categories.map((c: any) => (
           <section key={c.name}>
             <h3>{c.name}</h3>
-            {c.options
-              .filter((o: any) => o.decision === "pending")
-              .map((o: any) => (
-                <SwipeCard key={o.option_id} option={o} onDecide={decide} />
-              ))}
+            {fallbackByCategory[c.name] ? (
+              <ManualFallback category={c.name} bestOptions={fallbackByCategory[c.name]} />
+            ) : c.status === "all_rejected" ? (
+              <RejectionPrompt category={c.name} onSubmit={submitRejection} />
+            ) : (
+              c.options
+                .filter((o: any) => o.decision === "pending")
+                .map((o: any) => <SwipeCard key={o.option_id} option={o} onDecide={decide} />)
+            )}
           </section>
         ))}
 

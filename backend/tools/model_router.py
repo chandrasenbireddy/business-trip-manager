@@ -8,7 +8,6 @@ import functools
 from pathlib import Path
 
 import yaml
-
 from opentelemetry import trace
 
 _CONFIG_PATH = Path(__file__).parent.parent / "models.yaml"

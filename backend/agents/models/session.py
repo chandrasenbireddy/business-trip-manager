@@ -6,8 +6,7 @@ RLS scoping.
 """
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 
 from tools.db_context import tenant_connection
 
@@ -32,6 +31,7 @@ class ResearchOption:
     attributes: dict
     decision: str = "pending"
     badge: str | None = None
+    attempt_number: int = 1
 
 
 async def create_session(tenant_id: str, user_id: str, trip_request: dict) -> TripSession:
@@ -81,22 +81,36 @@ async def set_itinerary(tenant_id: str, session_id: str, itinerary: dict, total_
         )
 
 
-async def add_research_options(tenant_id: str, session_id: str, category: str, options: list[dict]) -> list[ResearchOption]:
+async def add_research_options(
+    tenant_id: str, session_id: str, category: str, options: list[dict], attempt_number: int = 1
+) -> list[ResearchOption]:
     created = []
     async with tenant_connection(tenant_id) as conn:
         for attrs in options:
             option_id = str(uuid.uuid4())
             await conn.execute(
-                "INSERT INTO research_options (option_id, session_id, tenant_id, category, attributes) "
-                "VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO research_options (option_id, session_id, tenant_id, category, attributes, attempt_number) "
+                "VALUES ($1, $2, $3, $4, $5, $6)",
                 option_id,
                 session_id,
                 tenant_id,
                 category,
                 attrs,
+                attempt_number,
             )
-            created.append(ResearchOption(option_id, session_id, tenant_id, category, attrs))
+            created.append(ResearchOption(option_id, session_id, tenant_id, category, attrs, attempt_number=attempt_number))
     return created
+
+
+async def get_max_attempt_number(tenant_id: str, session_id: str, category: str) -> int:
+    async with tenant_connection(tenant_id) as conn:
+        row = await conn.fetchrow(
+            "SELECT COALESCE(MAX(attempt_number), 0) AS max_attempt FROM research_options "
+            "WHERE session_id = $1 AND category = $2",
+            session_id,
+            category,
+        )
+    return row["max_attempt"]
 
 
 async def get_options(tenant_id: str, session_id: str, category: str | None = None) -> list[ResearchOption]:
@@ -116,6 +130,7 @@ async def get_options(tenant_id: str, session_id: str, category: str | None = No
             attributes=r["attributes"],
             decision=r["decision"],
             badge=r["badge"],
+            attempt_number=r["attempt_number"],
         )
         for r in rows
     ]

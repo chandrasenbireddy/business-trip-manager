@@ -7,8 +7,12 @@ from browser_use import Agent as BrowserAgent
 from agents.base import traced
 
 
-async def _run_browser_search(destination: str, checkin: str, checkout: str) -> list[dict]:
+async def _run_browser_search(destination: str, checkin: str, checkout: str, notes: str, broaden: bool) -> list[dict]:
     task = f"Search Airbnb for stays in {destination} from {checkin} to {checkout}. Return listing_id, price, lat, lng, rating."
+    if notes:
+        task += f" The traveler said: {notes!r} — take that into account."
+    if broaden:
+        task += " No results at the exact dates — widen the search to +/- 2 days and a larger radius."
     browser_agent = BrowserAgent(task=task)
     return await browser_agent.run()
 
@@ -24,15 +28,20 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 @traced("scraper.search_airbnb", tool_name="search_airbnb")
 async def search_airbnb(
-    destination: str, reference_point: dict, checkin: str, checkout: str
+    destination: str,
+    reference_point: dict,
+    checkin: str,
+    checkout: str,
+    notes: str = "",
+    broaden: bool = False,
 ) -> list[dict]:
     """Retry exactly once on failure before raising (NFR-02). Every result gets
     `distance_km` from `reference_point` (spec FR-003).
     """
     try:
-        listings = await _run_browser_search(destination, checkin, checkout)
+        listings = await _run_browser_search(destination, checkin, checkout, notes, broaden)
     except Exception:
-        listings = await _run_browser_search(destination, checkin, checkout)
+        listings = await _run_browser_search(destination, checkin, checkout, notes, broaden)
 
     for listing in listings:
         listing["distance_km"] = round(

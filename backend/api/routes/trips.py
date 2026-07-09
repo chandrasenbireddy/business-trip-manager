@@ -32,13 +32,25 @@ async def get_trip(session_id: str, request: Request):
         raise HTTPException(404, "Session not found")
 
     options = await get_options(request.state.tenant_id, session_id)
-    categories = {}
+    by_category: dict[str, list] = {}
     for opt in options:
-        categories.setdefault(opt.category, []).append(opt.__dict__)
+        by_category.setdefault(opt.category, []).append(opt)
+
+    categories = []
+    for name, opts in by_category.items():
+        current_attempt = max(o.attempt_number for o in opts)
+        current_batch = [o for o in opts if o.attempt_number == current_attempt]
+        if any(o.decision == "selected" for o in current_batch):
+            status = "selected"
+        elif all(o.decision == "rejected" for o in current_batch):
+            status = "all_rejected"
+        else:
+            status = "selecting"
+        categories.append({"name": name, "status": status, "options": [o.__dict__ for o in current_batch]})
 
     return {
         "status": session.status,
-        "categories": [{"name": name, "options": opts} for name, opts in categories.items()],
+        "categories": categories,
         "itinerary": session.itinerary,
     }
 
@@ -64,6 +76,16 @@ async def record_option_decision(session_id: str, option_id: str, body: dict, re
         tenant_id, session_id, option_id, body["decision"], shown_snapshot=option.attributes
     )
     return {"category_status": "recorded"}
+
+
+@router.post("/{session_id}/categories/{category}/research")
+async def research_category(session_id: str, category: str, body: dict, request: Request):
+    """spec FR-007/FR-008: re-search one category from a stated rejection reason,
+    capped at 3 shown attempts (contracts/bff-api.md)."""
+    result = await planner.research_category(
+        request.state.tenant_id, session_id, category, reason=body.get("reason", "")
+    )
+    return result
 
 
 @router.post("/{session_id}/confirm")

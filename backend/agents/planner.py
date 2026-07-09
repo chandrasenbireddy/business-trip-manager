@@ -1,7 +1,9 @@
-"""Planner agent: parallel research dispatch, results merge, itinerary assembly.
+"""Planner agent: parallel research dispatch, results merge, itinerary assembly,
+category re-search recovery.
 
 spec FR-003 (parallel dispatch), FR-005/FR-006 (card_ready/category_complete),
-FR-009 (build_itinerary).
+FR-007/FR-008/FR-008a (re-search, reject cap, zero-result retry), FR-009
+(build_itinerary).
 """
 
 import asyncio
@@ -9,6 +11,7 @@ import asyncio
 from agents.base import traced
 from agents.models.session import (
     add_research_options,
+    get_max_attempt_number,
     get_options,
     get_session,
     record_decision,
@@ -20,34 +23,83 @@ from scrapers.flights import search_flights
 from tools import events
 
 CATEGORIES = ("flight", "accommodation")
+REJECT_CAP = 3
+
+
+async def _search_category(category: str, trip_request: dict, notes: str = "", broaden: bool = False) -> list[dict]:
+    if category == "flight":
+        return await search_flights(
+            origin=trip_request.get("origin", ""),
+            destination=trip_request["destination"],
+            depart_date=trip_request["start_date"],
+            return_date=trip_request.get("end_date"),
+            notes=notes,
+            broaden=broaden,
+        )
+    return await search_airbnb(
+        destination=trip_request["destination"],
+        reference_point=trip_request.get("reference_point", {"lat": 0.0, "lng": 0.0}),
+        checkin=trip_request["start_date"],
+        checkout=trip_request["end_date"],
+        notes=notes,
+        broaden=broaden,
+    )
+
+
+async def _search_with_broaden_retry(category: str, trip_request: dict, notes: str = "") -> list[dict]:
+    """spec FR-008a: a zero-result category gets one silent, broadened retry
+    before it's ever shown empty — this retry does NOT consume the reject
+    cap (it happens before any batch is persisted with an attempt_number).
+    """
+    results = await _search_category(category, trip_request, notes=notes)
+    if not results:
+        results = await _search_category(category, trip_request, notes=notes, broaden=True)
+    return results
 
 
 @traced("planner.run_research")
 async def run_research(session_id: str, tenant_id: str, trip_request: dict) -> None:
     await events.publish(session_id, "research_started", {"categories": list(CATEGORIES)})
 
-    flight_task = search_flights(
-        origin=trip_request.get("origin", ""),
-        destination=trip_request["destination"],
-        depart_date=trip_request["start_date"],
-        return_date=trip_request.get("end_date"),
+    flight_results, accommodation_results = await asyncio.gather(
+        _search_with_broaden_retry("flight", trip_request),
+        _search_with_broaden_retry("accommodation", trip_request),
     )
-    reference_point = trip_request.get("reference_point", {"lat": 0.0, "lng": 0.0})
-    airbnb_task = search_airbnb(
-        destination=trip_request["destination"],
-        reference_point=reference_point,
-        checkin=trip_request["start_date"],
-        checkout=trip_request["end_date"],
-    )
-
-    flight_results, accommodation_results = await asyncio.gather(flight_task, airbnb_task)
 
     for category, results in (("flight", flight_results), ("accommodation", accommodation_results)):
-        created = await add_research_options(tenant_id, session_id, category, results)
+        created = await add_research_options(tenant_id, session_id, category, results, attempt_number=1)
         for option in created:
             await events.publish(
                 session_id, "card_ready", {"category": category, "option": option.__dict__}
             )
+
+
+@traced("planner.research_category")
+async def research_category(tenant_id: str, session_id: str, category: str, reason: str) -> dict:
+    """spec FR-007: re-search only `category` from a stated rejection reason.
+    spec FR-008: capped at 3 shown attempts — the 3rd rejection returns a
+    manual-fallback payload (best options seen so far) instead of a 4th search.
+    """
+    current_attempt = await get_max_attempt_number(tenant_id, session_id, category)
+
+    if current_attempt >= REJECT_CAP:
+        all_options = await get_options(tenant_id, session_id, category)
+        best = sorted(all_options, key=lambda o: o.attributes.get("price", float("inf")))[:5]
+        payload = {"category": category, "best_options": [o.__dict__ for o in best]}
+        await events.publish(session_id, "manual_fallback", payload)
+        return {"status": "manual_fallback", "best_options": payload["best_options"]}
+
+    next_attempt = current_attempt + 1
+    await events.publish(session_id, "researching_again", {"category": category, "attempt_number": next_attempt})
+
+    session = await get_session(tenant_id, session_id)
+    results = await _search_with_broaden_retry(category, session.trip_request, notes=reason)
+
+    created = await add_research_options(tenant_id, session_id, category, results, attempt_number=next_attempt)
+    for option in created:
+        await events.publish(session_id, "card_ready", {"category": category, "option": option.__dict__})
+
+    return {"status": "researching"}
 
 
 @traced("planner.handle_decision")
@@ -62,8 +114,12 @@ async def handle_decision(
         by_category.setdefault(opt.category, []).append(opt)
 
     for category, opts in by_category.items():
-        selected = [o for o in opts if o.decision == "selected"]
-        all_rejected = all(o.decision == "rejected" for o in opts)
+        # Only the current attempt's batch decides completeness — options from
+        # an earlier, already-rejected attempt don't count against a fresh one.
+        current_attempt = max(o.attempt_number for o in opts)
+        current_batch = [o for o in opts if o.attempt_number == current_attempt]
+        selected = [o for o in current_batch if o.decision == "selected"]
+        all_rejected = all(o.decision == "rejected" for o in current_batch)
         if selected:
             await events.publish(session_id, "category_complete", {"category": category, "outcome": "selected"})
         elif all_rejected:
