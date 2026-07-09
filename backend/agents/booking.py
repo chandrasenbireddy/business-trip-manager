@@ -50,8 +50,8 @@ async def book_airbnb(itinerary: dict) -> dict:
 @traced("booking.add_to_calendar", tool_name="add_to_calendar")
 async def add_to_calendar(itinerary: dict, calendar_credentials_ref: str) -> dict:
     """Uses the traveler's own OAuth token reference (spec FR-015)."""
-    token = secrets.resolve(calendar_credentials_ref)
-    # Real implementation calls the Google/Microsoft Calendar API with `token`.
+    secrets.resolve(calendar_credentials_ref)
+    # Real implementation uses the resolved token to call the Google/Microsoft Calendar API.
     return {"status": "ok"}
 
 
@@ -61,8 +61,8 @@ async def send_email(itinerary: dict, cost_summary: dict, recipient_address: str
     traveler's own account (spec FR-016, research.md §7 — resolved during
     /speckit-analyze, finding C3).
     """
-    api_key = secrets.resolve("btm/transactional_email_api_key")
-    # Real implementation calls the transactional email provider with `api_key`.
+    secrets.resolve("btm/transactional_email_api_key")
+    # Real implementation uses the resolved key to call the transactional email provider.
     return {"status": "ok"}
 
 

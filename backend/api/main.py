@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 
 from api.middleware.auth import SessionAuthMiddleware
-from api.routes import admin, airbnb, preferences, trips
+from api.routes import admin, airbnb, auth, preferences, trips, waitlist
 from tools import db_context
 
 
@@ -26,6 +26,9 @@ app.include_router(trips.router)
 app.include_router(preferences.router)
 app.include_router(admin.router)
 app.include_router(airbnb.router)
+app.include_router(waitlist.router)
+app.include_router(waitlist.admin_router)
+app.include_router(auth.router)
 
 
 @app.get("/health")
@@ -41,8 +44,3 @@ async def me(request: Request):
         "is_admin": request.state.is_admin,
     }
 
-
-# Remaining routers are added as their user stories are implemented:
-#   from api.routes import waitlist, auth
-#   app.include_router(waitlist.router)
-#   ...

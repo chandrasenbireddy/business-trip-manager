@@ -46,3 +46,19 @@ async def tenant_connection(tenant_id: str):
         async with conn.transaction():
             await conn.execute("SELECT set_config('app.tenant_id', $1, true)", tenant_id)
             yield conn
+
+
+@asynccontextmanager
+async def untenanted_connection():
+    """For the handful of tables that genuinely have no tenant yet — waitlist
+    rows exist before a tenant is ever created (spec FR-031/FR-032). Callers
+    MUST NOT use this for any tenant-scoped table.
+
+    A plain `from tools.db_context import _pool` at another module's import
+    time would capture `None` and never see a later `init_pool()` reassign
+    it — this accesses the module-level name fresh on every call instead.
+    """
+    if _pool is None:
+        raise RuntimeError("db_context.init_pool() must be called before use")
+    async with _pool.acquire() as conn:
+        yield conn

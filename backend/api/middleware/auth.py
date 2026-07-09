@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 
 from tools.telemetry import RunContext, run_context
 
-_UNAUTHENTICATED_PATHS = {"/waitlist", "/auth/callback", "/health"}
+_UNAUTHENTICATED_PATHS = {"/waitlist", "/auth/login", "/auth/callback", "/health"}
 
 
 def _session_id_from_path(path: str) -> str:
