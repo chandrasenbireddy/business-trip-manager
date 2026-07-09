@@ -6,38 +6,83 @@ FR-015: read-only calendar-availability check before research begins
 (added during /speckit-analyze, finding C1).
 """
 
-from agents.base import BtmAgent, traced
+import json
+from datetime import date
+
+from openai import AsyncOpenAI
+
+from agents.base import traced
 from agents.models.cost import record_cost_event
 from agents.models.session import create_session
 from tools import events
-from tools.model_router import call_with_fallback, primary_model
+from tools.model_router import call_with_fallback, client_config, primary_model
 
 REQUIRED_FIELDS = ("destination", "start_date", "end_date")
 
-_orchestrator = BtmAgent()
+_EXTRACTION_FIELDS = ("destination", "start_date", "end_date", "purpose", "budget", "reference_point", "origin")
+
+_EXTRACTION_SYSTEM_PROMPT = """You extract structured trip details from a traveler's free-text request.
+
+Respond with ONLY a JSON object (no prose, no markdown fences) with exactly these fields:
+- destination: string, the city/place being traveled to. Required — use "" if genuinely absent.
+- start_date: string, ISO 8601 date (YYYY-MM-DD), or null if not stated.
+- end_date: string, ISO 8601 date (YYYY-MM-DD), or null if not stated.
+- purpose: string or null, the stated reason for travel.
+- budget: number or null, the traveler's total stated budget in USD (strip currency symbols).
+- reference_point: string or null, a named landmark/area the traveler wants to stay near.
+- origin: string or null, the departure city — only if explicitly stated.
+
+Dates with no year stated are ambiguous — resolve to the next future occurrence of that
+month/day relative to today, {today}. Never invent a value not present in the request.
+"""
 
 
 async def _extract_trip_details(description: str) -> dict:
     """LLM-backed extraction of {destination, start_date, end_date, purpose,
-    budget, constraints[]} from a free-text English request. Broken out as its
-    own function so tests can patch it without a live model call.
+    budget, reference_point, origin} from a free-text English request.
+    Broken out as its own function so tests can patch it without a live
+    model call.
+
+    strands.Agent has no extract_structured method (that was never a real
+    Strands SDK method — found via the AttributeError it raised on every
+    real call). Calls NVIDIA NIM directly instead, via the OpenAI-compatible
+    chat completions API both NIM and Groq (call_with_fallback's retry
+    target) implement — tools/model_router.py's client_config() already
+    resolves the right base_url/api_key/model for whichever of the two this
+    is currently calling.
     """
 
     async def _invoke(model_id: str) -> dict:
-        return await _orchestrator.extract_structured(  # provided by strands.Agent
-            model=model_id,
-            prompt=description,
-            schema={
-                "destination": "string",
-                "start_date": "date|null",
-                "end_date": "date|null",
-                "purpose": "string|null",
-                "budget": "number|null",
-                "constraints": "string[]",
-            },
+        which = "primary" if model_id == primary_model("orchestrator") else "fallback"
+        cfg = client_config("orchestrator", which=which)
+        client = AsyncOpenAI(base_url=cfg["base_url"], api_key=cfg["api_key"])
+        response = await client.chat.completions.create(
+            model=cfg["model"],
+            messages=[
+                {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT.format(today=date.today().isoformat())},
+                {"role": "user", "content": description},
+            ],
+            response_format={"type": "json_object"},
         )
+        return _parse_extraction(response.choices[0].message.content)
 
     return await call_with_fallback("orchestrator", _invoke)
+
+
+def _parse_extraction(content: str) -> dict:
+    """Some NIM-hosted models wrap JSON in a markdown fence despite
+    response_format={"type": "json_object"} — strip one if present. Keeps
+    only the fields this codebase actually reads, dropping anything extra
+    the model adds unprompted; a malformed/non-JSON response raises, which
+    call_with_fallback treats the same as any other primary-model failure.
+    """
+    text = content.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[len("json") :]
+    parsed = json.loads(text)
+    return {field: parsed.get(field) for field in _EXTRACTION_FIELDS}
 
 
 def _missing_required_field(details: dict) -> str | None:

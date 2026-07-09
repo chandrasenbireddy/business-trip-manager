@@ -16,6 +16,12 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.25",
     "pydantic>=2.8",
     "pyyaml>=6.0",
+    # NVIDIA NIM (and Groq, orchestrator's fallback) are both OpenAI Chat
+    # Completions-compatible — the official client just needs base_url/
+    # api_key pointed at them (tools/model_router.py's client_config()).
+    # Already pulled in transitively via browser-use/mcp, but declared
+    # explicitly since agents/orchestrator.py now depends on it directly.
+    "openai>=1.50",
 ]
 
 [project.optional-dependencies]
