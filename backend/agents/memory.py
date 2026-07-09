@@ -5,6 +5,7 @@ research to the same destination).
 """
 
 from agents.base import traced
+from agents.models.cost import record_cost_event
 from agents.models.memory import get_closed_sessions_for_destination
 from agents.models.memory import get_preferences as _get_preferences
 from agents.models.memory import get_recent_turns
@@ -13,6 +14,7 @@ from agents.models.memory import store_turn as _store_turn
 from agents.models.session import get_session
 from tools.airbnb_account import fetch_airbnb_account
 from tools.embeddings import embed
+from tools.model_router import primary_model
 
 
 @traced("memory.get_airbnb_context", tool_name="get_airbnb_context")
@@ -52,6 +54,8 @@ def check_date_conflict(upcoming_reservations: list[dict], start_date: str, end_
 async def store_turn(tenant_id: str, session_id: str, user_id: str, role: str, content: str) -> dict:
     embedding = await embed(content)
     turn = await _store_turn(tenant_id, session_id, user_id, role, content, embedding)
+    # spec FR-021/FR-023: memory's own line in the session cost summary.
+    await record_cost_event(tenant_id, session_id, user_id, agent_type="memory", model_id=primary_model("memory"))
     return {"turn_id": turn.turn_id}
 
 

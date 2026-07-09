@@ -3,13 +3,15 @@ GET /trips/{id}/stream, decision, confirm.
 """
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from agents import booking, planner
+from agents.models.cost import get_session_cost_summary
 from agents.models.session import get_options, get_session, list_sessions_for_user, record_confirmation, update_session_status
 from agents.models.tenant import get_tenant
 from agents.orchestrator import handle_trip_request
 from tools import events
+from tools.report import generate_report_html, get_or_create_report
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -123,6 +125,33 @@ async def confirm_trip(session_id: str, request: Request):
     await update_session_status(tenant_id, session_id, "confirmed")
 
     result = await booking.execute_booking(
-        session_id=session_id, session_status="confirmed", itinerary=session.itinerary
+        session_id=session_id,
+        session_status="confirmed",
+        itinerary=session.itinerary,
+        tenant_id=tenant_id,
+        user_id=session.user_id,
     )
     return {"status": result["status"]}
+
+
+@router.get("/{session_id}/cost-summary")
+async def cost_summary(session_id: str, request: Request):
+    """spec FR-023: presented before the traveler leaves — broken down by activity."""
+    return await get_session_cost_summary(request.state.tenant_id, session_id)
+
+
+@router.get("/{session_id}/report")
+async def report(session_id: str, request: Request):
+    """spec FR-024/025: download always succeeds; the hosted link is best-effort."""
+    result = await get_or_create_report(request.state.tenant_id, session_id)
+    return {k: v for k, v in result.items() if not k.startswith("_")}
+
+
+@router.get("/{session_id}/report/download")
+async def report_download(session_id: str, request: Request):
+    session = await get_session(request.state.tenant_id, session_id)
+    if session is None:
+        raise HTTPException(404, "Session not found")
+    options = await get_options(request.state.tenant_id, session_id)
+    cost_summary_data = await get_session_cost_summary(request.state.tenant_id, session_id)
+    return HTMLResponse(generate_report_html(session, options, cost_summary_data))

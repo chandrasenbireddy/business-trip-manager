@@ -6,8 +6,10 @@ spec FR-010/FR-011/FR-012/FR-016.
 """
 
 from agents.base import traced
+from agents.models.cost import record_cost_event
 from agents.models.tenant import OrganizationTravelPolicy
 from tools import events, secrets
+from tools.model_router import primary_model
 
 
 class BookingGateError(Exception):
@@ -65,12 +67,20 @@ async def send_email(itinerary: dict, cost_summary: dict, recipient_address: str
 
 
 @traced("booking.execute_booking")
-async def execute_booking(session_id: str, session_status: str, itinerary: dict) -> dict:
+async def execute_booking(
+    session_id: str, session_status: str, itinerary: dict, tenant_id: str | None = None, user_id: str | None = None
+) -> dict:
     if session_status != "confirmed":
         raise BookingGateError(
             f"execute_booking called with session_status={session_status!r}; "
             "MUST be 'confirmed' (constitution Principle IX)"
         )
+
+    # spec FR-021/FR-023. tenant_id/user_id are optional so this dedicated
+    # gate test (T028) — which uses a session_id with no real DB row behind
+    # it — can exercise the gate without also needing cost-recording infra.
+    if tenant_id and user_id:
+        await record_cost_event(tenant_id, session_id, user_id, agent_type="booking", model_id=primary_model("booking"))
 
     # Each step is reported independently, not collapsed into one status
     # (spec Edge Cases) — a calendar failure must not mask a successful flight step.

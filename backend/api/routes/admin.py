@@ -6,7 +6,8 @@ Every route here depends on require_admin — a non-admin caller gets 403
 
 from fastapi import APIRouter, Depends, Request
 
-from agents.models.session import get_approval_events, get_cost_usage
+from agents.models.cost import get_tenant_cost_usage
+from agents.models.session import get_approval_events
 from agents.models.tenant import get_tenant, set_policy
 from api.middleware.admin import require_admin
 
@@ -34,4 +35,4 @@ async def list_approval_events(request: Request):
 
 @router.get("/cost-usage")
 async def cost_usage(request: Request):
-    return await get_cost_usage(request.state.tenant_id)
+    return await get_tenant_cost_usage(request.state.tenant_id)

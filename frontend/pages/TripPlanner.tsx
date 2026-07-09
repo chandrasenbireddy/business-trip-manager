@@ -4,6 +4,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AirbnbReconnectNudge } from "../components/AirbnbBadges";
 import { BookingProgress } from "../components/BookingProgress";
 import { CategoryProgress } from "../components/CategoryProgress";
+import { CostSummary } from "../components/CostSummary";
+import { ItineraryReport } from "../components/ItineraryReport";
 import { ItinerarySummary } from "../components/ItinerarySummary";
 import { ManualFallback } from "../components/ManualFallback";
 import { RejectionPrompt } from "../components/RejectionPrompt";
@@ -17,6 +19,8 @@ export default function TripPlanner() {
   const [description, setDescription] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [airbnbStatus, setAirbnbStatus] = useState<{ connected: boolean; cookie_status: string } | null>(null);
+  const [costSummary, setCostSummary] = useState<{ by_activity: Record<string, number>; total: number } | null>(null);
+  const [report, setReport] = useState<{ download_url: string; share_url: string | null; share_expires_at: string | null } | null>(null);
 
   const { session, refresh } = useSession(sessionId);
   const events = useTripStream(sessionId);
@@ -24,6 +28,7 @@ export default function TripPlanner() {
   const calendarConflict = events.find((e) => e.type === "calendar_conflict");
   const airbnbConflict = events.find((e) => e.type === "airbnb_conflict");
   const bookingSteps = events.filter((e) => e.type === "booking_progress");
+  const bookingComplete = events.find((e) => e.type === "booking_complete");
   // Most recent manual_fallback per category — a later re-search recovering
   // from a fallback (shouldn't normally happen, but) supersedes the earlier one.
   const fallbackByCategory = Object.fromEntries(
@@ -35,6 +40,18 @@ export default function TripPlanner() {
       .then((r) => (r.ok ? r.json() : null))
       .then(setAirbnbStatus);
   }, []);
+
+  useEffect(() => {
+    // spec FR-023/024: presented once the session is done — booking_complete
+    // is the signal, same as when the confirmation itself finishes.
+    if (!bookingComplete || !sessionId) return;
+    fetch(`/trips/${sessionId}/cost-summary`, { credentials: "include" })
+      .then((r) => r.json())
+      .then(setCostSummary);
+    fetch(`/trips/${sessionId}/report`, { credentials: "include" })
+      .then((r) => r.json())
+      .then(setReport);
+  }, [bookingComplete, sessionId]);
 
   async function startTrip() {
     const res = await fetch("/trips", {
@@ -130,6 +147,15 @@ export default function TripPlanner() {
 
       {bookingSteps.length > 0 && (
         <BookingProgress steps={bookingSteps.map((e: any) => ({ step: e.step, status: e.status }))} />
+      )}
+
+      {costSummary && <CostSummary byActivity={costSummary.by_activity} total={costSummary.total} />}
+      {report && (
+        <ItineraryReport
+          downloadUrl={report.download_url}
+          shareUrl={report.share_url}
+          shareExpiresAt={report.share_expires_at}
+        />
       )}
     </div>
   );

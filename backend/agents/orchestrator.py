@@ -7,9 +7,10 @@ FR-015: read-only calendar-availability check before research begins
 """
 
 from agents.base import BtmAgent, traced
+from agents.models.cost import record_cost_event
 from agents.models.session import create_session
 from tools import events
-from tools.model_router import call_with_fallback
+from tools.model_router import call_with_fallback, primary_model
 
 REQUIRED_FIELDS = ("destination", "start_date", "end_date")
 
@@ -56,6 +57,13 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
         return {"clarifying_question": f"What {missing.replace('_', ' ')} did you have in mind?"}
 
     session = await create_session(tenant_id, user_id, trip_request=details)
+
+    # spec FR-021/FR-023: attribute the NL-extraction call's cost to this
+    # session. tokens/cost are 0 until a real model call replaces
+    # _extract_trip_details's stub — the recording pipeline itself is real.
+    await record_cost_event(
+        tenant_id, session.session_id, user_id, agent_type="orchestrator", model_id=primary_model("orchestrator")
+    )
 
     from agents.memory import check_date_conflict, get_airbnb_context, store_turn
 

@@ -9,6 +9,7 @@ FR-007/FR-008/FR-008a (re-search, reject cap, zero-result retry), FR-009
 import asyncio
 
 from agents.base import traced
+from agents.models.cost import record_cost_event
 from agents.models.session import (
     add_research_options,
     get_max_attempt_number,
@@ -22,6 +23,7 @@ from agents.models.tenant import OrganizationTravelPolicy, get_tenant
 from scrapers.airbnb import search_airbnb
 from scrapers.flights import search_flights
 from tools import events
+from tools.model_router import primary_model
 
 CATEGORIES = ("flight", "accommodation")
 REJECT_CAP = 3
@@ -150,6 +152,12 @@ async def run_research(
             notes=f"{_preference_notes(preferences, 'accommodation')} {_history_notes(history)}".strip(),
         ),
     )
+
+    # spec FR-021/FR-023: attribute research cost per activity — the search
+    # calls (scraper_*) and the planning/merge work around them (planner)
+    # are each their own line in the session cost summary.
+    for agent_type in ("planner", "scraper_flights", "scraper_airbnb"):
+        await record_cost_event(tenant_id, session_id, user_id, agent_type=agent_type, model_id=primary_model("planner"))
 
     tenant = await get_tenant(tenant_id)
     policy = tenant.travel_policy if tenant else OrganizationTravelPolicy()
