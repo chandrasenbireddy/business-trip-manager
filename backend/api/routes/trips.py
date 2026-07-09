@@ -6,11 +6,17 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from agents import booking, planner
-from agents.models.session import get_options, get_session, record_confirmation
+from agents.models.session import get_options, get_session, list_sessions_for_user, record_confirmation
 from agents.orchestrator import handle_trip_request
 from tools import events
 
 router = APIRouter(prefix="/trips", tags=["trips"])
+
+
+@router.get("")
+async def list_trips(request: Request):
+    sessions = await list_sessions_for_user(request.state.tenant_id, request.state.user_id)
+    return {"sessions": sessions}
 
 
 @router.post("")

@@ -57,6 +57,10 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
 
     session = await create_session(tenant_id, user_id, trip_request=details)
 
+    from agents.memory import store_turn
+
+    await store_turn(tenant_id, session.session_id, user_id, role="traveler", content=description)
+
     conflicts = await check_calendar_availability(
         user_id, details["start_date"], details["end_date"], calendar_credentials_ref=f"{user_id}/google_calendar_token"
     )
@@ -65,7 +69,7 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
 
     from agents.planner import run_research
 
-    await run_research(session.session_id, tenant_id, details)
+    await run_research(session.session_id, tenant_id, user_id, details)
 
     return {"session_id": session.session_id, "status": "in_progress"}
 

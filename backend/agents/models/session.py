@@ -64,6 +64,26 @@ async def get_session(tenant_id: str, session_id: str) -> TripSession | None:
     )
 
 
+async def list_sessions_for_user(tenant_id: str, user_id: str, limit: int = 20) -> list[dict]:
+    """History page (spec Story 3, T065) — most recent first."""
+    async with tenant_connection(tenant_id) as conn:
+        rows = await conn.fetch(
+            "SELECT session_id, trip_request, status, created_at FROM sessions "
+            "WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
+            user_id,
+            limit,
+        )
+    return [
+        {
+            "session_id": r["session_id"],
+            "destination": (r["trip_request"] or {}).get("destination"),
+            "status": r["status"],
+            "created_at": r["created_at"].isoformat(),
+        }
+        for r in rows
+    ]
+
+
 async def update_session_status(tenant_id: str, session_id: str, status: str) -> None:
     async with tenant_connection(tenant_id) as conn:
         await conn.execute(

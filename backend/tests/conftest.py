@@ -13,6 +13,7 @@ import pytest
 from authlib.jose import jwt
 from fastapi.testclient import TestClient
 
+from tools import db_context
 from tools.telemetry import RunContext, run_context
 
 TEST_DSN = os.environ.get("TEST_DATABASE_URL")
@@ -43,11 +44,19 @@ async def _seed_test_tenant():
     (no-op) when no TEST_DATABASE_URL is configured, same as
     test_tenant_isolation.py. Uses its own connection, not the app's pool —
     this runs before the `client` fixture (if any) enters the app's lifespan.
+
+    Also (re-)initializes tools.db_context's pool for every test, in that
+    test's own event loop — otherwise a test that calls an agent/model
+    function directly (bypassing the `client` fixture's app lifespan, which
+    is the only other thing that inits the pool) inherits a pool bound to
+    the closed loop of whichever earlier test's `client` fixture last set it,
+    and asyncpg raises "another operation is in progress" on first use.
     """
     if not TEST_DSN:
         yield
         return
 
+    await db_context.init_pool(TEST_DSN)
     conn = await asyncpg.connect(SEED_DSN)
     await conn.execute(
         "INSERT INTO tenants (tenant_id, name) VALUES ('test-tenant', 'test-tenant') "

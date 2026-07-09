@@ -25,7 +25,12 @@ async def _register_jsonb_codec(conn: asyncpg.Connection) -> None:
 
 async def init_pool(dsn: str) -> None:
     global _pool
-    _pool = await asyncpg.create_pool(dsn, init=_register_jsonb_codec)
+    # min_size/max_size kept small deliberately: callers (notably the test
+    # suite, which re-inits per test to stay bound to each test's own event
+    # loop) may call this many times without ever closing the prior pool —
+    # a default-sized pool (min_size=10) exhausts Postgres's connection
+    # limit within a normal test run; a small one doesn't.
+    _pool = await asyncpg.create_pool(dsn, init=_register_jsonb_codec, min_size=1, max_size=3)
 
 
 @asynccontextmanager

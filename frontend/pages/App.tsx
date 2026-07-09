@@ -3,6 +3,7 @@ import Landing from "./Landing";
 import Activate from "./Activate";
 import TripPlanner from "./TripPlanner";
 import History from "./History";
+import Preferences from "./Preferences";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Route path="/activate" element={<Activate />} />
         <Route path="/trips/:sessionId?" element={<TripPlanner />} />
         <Route path="/history" element={<History />} />
+        <Route path="/preferences" element={<Preferences />} />
       </Routes>
     </BrowserRouter>
   );

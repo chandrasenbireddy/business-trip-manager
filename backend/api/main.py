@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 
 from api.middleware.auth import SessionAuthMiddleware
-from api.routes import trips
+from api.routes import preferences, trips
 from tools import db_context
 
 
@@ -23,6 +23,7 @@ app = FastAPI(title="Business Travel Manager BFF", lifespan=lifespan)
 
 app.add_middleware(SessionAuthMiddleware, session_secret=os.environ["BTM_SESSION_SECRET"])
 app.include_router(trips.router)
+app.include_router(preferences.router)
 
 
 @app.get("/health")
@@ -40,6 +41,6 @@ async def me(request: Request):
 
 
 # Remaining routers are added as their user stories are implemented:
-#   from api.routes import preferences, admin, waitlist, airbnb, auth
-#   app.include_router(preferences.router)
+#   from api.routes import admin, waitlist, airbnb, auth
+#   app.include_router(admin.router)
 #   ...

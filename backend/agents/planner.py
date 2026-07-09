@@ -24,6 +24,21 @@ from tools import events
 
 CATEGORIES = ("flight", "accommodation")
 REJECT_CAP = 3
+_PREFERENCE_TYPES_BY_CATEGORY = {
+    "flight": ("seat", "preferred_airline", "budget_pattern"),
+    "accommodation": ("hotel_proximity", "dietary", "budget_pattern"),
+}
+
+
+def _preference_notes(preferences: list[dict], category: str) -> str:
+    relevant = [p for p in preferences if p["type"] in _PREFERENCE_TYPES_BY_CATEGORY.get(category, ())]
+    return "; ".join(f"{p['type']}={p['value']}" for p in relevant)
+
+
+def _history_notes(relevant_history: list[dict]) -> str:
+    if not relevant_history:
+        return ""
+    return f"Traveler has visited this destination before ({len(relevant_history)} prior trip(s)) — factor that in."
 
 
 async def _search_category(category: str, trip_request: dict, notes: str = "", broaden: bool = False) -> list[dict]:
@@ -58,12 +73,29 @@ async def _search_with_broaden_retry(category: str, trip_request: dict, notes: s
 
 
 @traced("planner.run_research")
-async def run_research(session_id: str, tenant_id: str, trip_request: dict) -> None:
+async def run_research(session_id: str, tenant_id: str, user_id: str, trip_request: dict) -> None:
+    """spec Story 3 (FR-013/FR-014): preferences and destination history are
+    read before first-pass research, so results already reflect them without
+    the traveler restating anything (wired here per tasks.md T062).
+    """
+    from agents.memory import get_preferences, retrieve_context
+
+    preferences = (await get_preferences(tenant_id, user_id))["preferences"]
+    history = (await retrieve_context(tenant_id, user_id, destination=trip_request.get("destination")))[
+        "relevant_history"
+    ]
+
     await events.publish(session_id, "research_started", {"categories": list(CATEGORIES)})
 
     flight_results, accommodation_results = await asyncio.gather(
-        _search_with_broaden_retry("flight", trip_request),
-        _search_with_broaden_retry("accommodation", trip_request),
+        _search_with_broaden_retry(
+            "flight", trip_request, notes=f"{_preference_notes(preferences, 'flight')} {_history_notes(history)}".strip()
+        ),
+        _search_with_broaden_retry(
+            "accommodation",
+            trip_request,
+            notes=f"{_preference_notes(preferences, 'accommodation')} {_history_notes(history)}".strip(),
+        ),
     )
 
     for category, results in (("flight", flight_results), ("accommodation", accommodation_results)):
