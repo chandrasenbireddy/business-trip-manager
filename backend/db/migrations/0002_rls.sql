@@ -4,6 +4,12 @@
 --
 -- After this migration, re-run tests/contract/test_tenant_isolation.py (T011) and
 -- confirm it now passes.
+--
+-- CRITICAL: RLS policies never apply to a superuser or to the table owner
+-- (FORCE ROW LEVEL SECURITY below covers the owner case; nothing covers a
+-- superuser — Postgres has no override for that). The connecting role MUST
+-- be the non-superuser, non-owning role created in 0003_app_role.sql, or
+-- every policy below is silently bypassed with no error.
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
@@ -12,6 +18,14 @@ ALTER TABLE approval_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_turns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE semantic_memories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cost_events ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
+ALTER TABLE sessions FORCE ROW LEVEL SECURITY;
+ALTER TABLE research_options FORCE ROW LEVEL SECURITY;
+ALTER TABLE approval_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE conversation_turns FORCE ROW LEVEL SECURITY;
+ALTER TABLE semantic_memories FORCE ROW LEVEL SECURITY;
+ALTER TABLE cost_events FORCE ROW LEVEL SECURITY;
 
 -- tenants/waitlist are platform-level tables with no tenant_id scoping needed
 -- (tenants IS the scope; waitlist rows don't belong to a tenant yet).

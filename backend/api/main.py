@@ -1,14 +1,28 @@
 """BTM FastAPI BFF — auth, session routing, SSE relay, waitlist management (PRD §8.1)."""
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 
 from api.middleware.auth import SessionAuthMiddleware
+from api.routes import trips
+from tools import db_context
 
-app = FastAPI(title="Business Travel Manager BFF")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # The asyncpg pool MUST be created in the loop that will actually serve
+    # requests — creating it elsewhere (e.g. an external script's own loop)
+    # produces "another operation is in progress" errors on first use.
+    await db_context.init_pool(os.environ["BTM_DATABASE_URL"])
+    yield
+
+
+app = FastAPI(title="Business Travel Manager BFF", lifespan=lifespan)
 
 app.add_middleware(SessionAuthMiddleware, session_secret=os.environ["BTM_SESSION_SECRET"])
+app.include_router(trips.router)
 
 
 @app.get("/health")
@@ -25,7 +39,7 @@ async def me(request: Request):
     }
 
 
-# Routers are added per user story as they're implemented:
-#   from api.routes import trips, preferences, admin, waitlist, airbnb, auth
-#   app.include_router(trips.router)
+# Remaining routers are added as their user stories are implemented:
+#   from api.routes import preferences, admin, waitlist, airbnb, auth
+#   app.include_router(preferences.router)
 #   ...

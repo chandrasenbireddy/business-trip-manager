@@ -7,6 +7,7 @@ see tests/contract/test_tenant_isolation.py (T011), which is written to fail
 until T012 lands.
 """
 
+import json
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -14,9 +15,17 @@ import asyncpg
 _pool: asyncpg.Pool | None = None
 
 
+async def _register_jsonb_codec(conn: asyncpg.Connection) -> None:
+    # asyncpg has no built-in dict<->jsonb marshalling — every connection in
+    # the pool needs this or `dict` params to jsonb columns raise DataError.
+    await conn.set_type_codec(
+        "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
+    )
+
+
 async def init_pool(dsn: str) -> None:
     global _pool
-    _pool = await asyncpg.create_pool(dsn)
+    _pool = await asyncpg.create_pool(dsn, init=_register_jsonb_codec)
 
 
 @asynccontextmanager

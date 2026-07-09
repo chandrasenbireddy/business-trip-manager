@@ -16,7 +16,28 @@ See `specs/001-business-travel-manager/` in the [btm Speckit workspace](https://
 ## Local development
 
 ```bash
+cp .env.example .env  # fill in BTM_SESSION_SECRET, BTM_DATABASE_URL
 pip install -e ".[dev]"
 pytest
 ruff check .
+```
+
+Run migrations in order: `0001_initial.sql`, `0002_rls.sql`, then `0003_app_role.sql`
+(creates the `btm_app` role — set its password via `psql -v btm_app_password=...`,
+never hardcode it).
+
+Most tests run without a database. The ones that don't (`test_tenant_isolation.py`,
+and any HTTP-level test that creates a real session) need `TEST_DATABASE_URL`
+pointed at a Postgres instance with all three migrations applied, plus
+`TEST_SEED_DATABASE_URL` pointed at a superuser/owner connection for fixture
+setup — **these two must be different roles**. Row-Level Security never
+applies to a superuser or table owner, so if `TEST_DATABASE_URL` is ever a
+superuser connection, `test_tenant_isolation.py` will pass without proving
+anything (this happened once during initial implementation — see
+`db/migrations/0002_rls.sql`'s comment).
+
+```bash
+export TEST_DATABASE_URL=postgresql://btm_app:...@localhost:5432/btm_test
+export TEST_SEED_DATABASE_URL=postgresql://postgres@localhost:5432/btm_test
+pytest
 ```
