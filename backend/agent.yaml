@@ -18,3 +18,12 @@ services:
 
 # model routing: see tools/model_router.py and models.yaml (research.md §3)
 # sdk migration path (PRD §8.5): v1 = strands + manual OTel; v2 = h2o_substrate.sdk decorators
+
+# PDPL/KSA data residency (constitution Principle XII): Cloud SQL, Secret Manager,
+# and the OTel collector/Langfuse deployment for the marketplace channel are all
+# pinned to the same KSA-region project. No personal data (names, emails, trip
+# details) may appear in logs or span attributes — only identifiers (tenant_id,
+# user_id, session_id).
+region: me-central2  # GCP KSA region
+project: humain-494919
+

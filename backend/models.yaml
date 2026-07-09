@@ -1,0 +1,27 @@
+# Per-agent model routing (PRD §7 Model Routing Strategy, research.md §3)
+# Swapping a model is a one-line change here — no code change required
+# (resolves PRD Open Question 6).
+
+orchestrator:
+  primary: deepseek-v3.2
+  fallback: groq-llama-3.3-70b
+
+planner:
+  primary: minimax-m3
+  fallback: deepseek-v3.2
+
+booking:
+  primary: deepseek-v3.2
+  fallback: groq-llama-3.3-70b
+
+memory:
+  primary: glm-4.7-flash
+  fallback: deepseek-v3.2
+
+scraper_flights:
+  primary: deepseek-v3.2
+  fallback: claude-haiku-4-5
+
+scraper_airbnb:
+  primary: deepseek-v3.2
+  fallback: claude-haiku-4-5
