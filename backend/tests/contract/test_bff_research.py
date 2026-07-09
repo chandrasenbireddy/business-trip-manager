@@ -48,13 +48,23 @@ def test_research_category_after_cap_returns_manual_fallback(client, auth_cookie
     # attempt 3 — the cap. A 4th call (this test's third `research` call) must
     # return manual_fallback instead of searching again.
     with patch("agents.planner.search_flights", AsyncMock(return_value=[{"id": "f2", "price": 450}])):
-        client.post(f"/trips/{session_id}/categories/flight/research", json={"reason": "no"}, cookies=auth_cookies)
+        client.post(
+            f"/trips/{session_id}/categories/flight/research",
+            json={"reason": "no"},
+            cookies=auth_cookies,
+        )
     with patch("agents.planner.search_flights", AsyncMock(return_value=[{"id": "f3", "price": 500}])):
-        client.post(f"/trips/{session_id}/categories/flight/research", json={"reason": "no"}, cookies=auth_cookies)
+        client.post(
+            f"/trips/{session_id}/categories/flight/research",
+            json={"reason": "no"},
+            cookies=auth_cookies,
+        )
 
     with patch("agents.planner.search_flights", AsyncMock(return_value=[{"id": "f4", "price": 550}])) as mock_search:
         res = client.post(
-            f"/trips/{session_id}/categories/flight/research", json={"reason": "still no"}, cookies=auth_cookies
+            f"/trips/{session_id}/categories/flight/research",
+            json={"reason": "still no"},
+            cookies=auth_cookies,
         )
     assert res.status_code == 200
     body = res.json()

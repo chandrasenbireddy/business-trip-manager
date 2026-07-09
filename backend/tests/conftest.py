@@ -58,10 +58,7 @@ async def _seed_test_tenant():
 
     await db_context.init_pool(TEST_DSN)
     conn = await asyncpg.connect(SEED_DSN)
-    await conn.execute(
-        "INSERT INTO tenants (tenant_id, name) VALUES ('test-tenant', 'test-tenant') "
-        "ON CONFLICT (tenant_id) DO NOTHING"
-    )
+    await conn.execute("INSERT INTO tenants (tenant_id, name) VALUES ('test-tenant', 'test-tenant') ON CONFLICT (tenant_id) DO NOTHING")
     # US4 added mutable, persistent tenant policy state (PUT /admin/policy).
     # Tests written before US4 assume no filtering/approval-gating happens —
     # reset it here so a policy one test sets can never leak into another
@@ -69,8 +66,7 @@ async def _seed_test_tenant():
     await conn.execute("UPDATE tenants SET travel_policy = '{}' WHERE tenant_id = 'test-tenant'")
     for user_id in ("traveler@example.com", "admin@example.com"):
         await conn.execute(
-            "INSERT INTO users (user_id, tenant_id) VALUES ($1, 'test-tenant') "
-            "ON CONFLICT (user_id) DO NOTHING",
+            "INSERT INTO users (user_id, tenant_id) VALUES ($1, 'test-tenant') ON CONFLICT (user_id) DO NOTHING",
             user_id,
         )
     await conn.close()

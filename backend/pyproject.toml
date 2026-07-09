@@ -30,7 +30,9 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 100
+# 140, not the more common 100/120: several agents/models/*.py SQL literals
+# in conn.execute() calls read far worse split across lines than left long.
+line-length = 140
 target-version = "py311"
 
 [tool.ruff.lint]

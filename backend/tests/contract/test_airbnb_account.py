@@ -1,8 +1,12 @@
 """Contract test for fetch_airbnb_account (contracts/agent-tools.md).
 
 T078 — written before tools/airbnb_account.py exists (T081/T084); MUST fail
-until then. `cookie_expired` degrades gracefully rather than raising —
-"no credential on file" and "an expired one" both hit this same path.
+until then. Both failure statuses degrade gracefully rather than raising —
+"no credential on file" (not_connected) and "an expired one" (cookie_expired)
+are distinguished only for the reconnect-nudge UI's wording (fixed during
+Polish, T108/T110: get_airbnb_context originally collapsed both into
+"connected: true", which would show a "reconnect" nudge to someone who
+never connected at all).
 """
 
 from unittest.mock import AsyncMock, patch
@@ -13,17 +17,20 @@ from tools.airbnb_account import fetch_airbnb_account
 
 
 @pytest.mark.asyncio
-async def test_no_connected_account_returns_cookie_expired():
+async def test_no_connected_account_returns_not_connected():
     with patch("tools.airbnb_account.secrets.resolve", side_effect=Exception("secret not found")):
         result = await fetch_airbnb_account("traveler@example.com")
-    assert result == {"status": "cookie_expired"}
+    assert result == {"status": "not_connected"}
 
 
 @pytest.mark.asyncio
 async def test_expired_session_returns_cookie_expired_not_an_exception():
     with (
         patch("tools.airbnb_account.secrets.resolve", lambda ref: "stale-cookie"),
-        patch("tools.airbnb_account._run_authenticated_session", AsyncMock(side_effect=Exception("auth failed"))),
+        patch(
+            "tools.airbnb_account._run_authenticated_session",
+            AsyncMock(side_effect=Exception("auth failed")),
+        ),
     ):
         result = await fetch_airbnb_account("traveler@example.com")
     assert result == {"status": "cookie_expired"}

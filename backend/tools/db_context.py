@@ -8,6 +8,7 @@ until T012 lands.
 """
 
 import json
+import os
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -18,19 +19,20 @@ _pool: asyncpg.Pool | None = None
 async def _register_jsonb_codec(conn: asyncpg.Connection) -> None:
     # asyncpg has no built-in dict<->jsonb marshalling — every connection in
     # the pool needs this or `dict` params to jsonb columns raise DataError.
-    await conn.set_type_codec(
-        "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
-    )
+    await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
 
 
 async def init_pool(dsn: str) -> None:
     global _pool
-    # min_size/max_size kept small deliberately: callers (notably the test
-    # suite, which re-inits per test to stay bound to each test's own event
-    # loop) may call this many times without ever closing the prior pool —
-    # a default-sized pool (min_size=10) exhausts Postgres's connection
-    # limit within a normal test run; a small one doesn't.
-    _pool = await asyncpg.create_pool(dsn, init=_register_jsonb_codec, min_size=1, max_size=3)
+    # BTM_DB_POOL_MIN/MAX default small (1/3) so the test suite — which
+    # re-inits this pool per test without ever closing the prior one — never
+    # exhausts Postgres's connection limit. A real deployment under
+    # concurrent tenant load (T107) must override these via env, or every
+    # request beyond the 3rd queues behind the same 3 connections regardless
+    # of traffic.
+    min_size = int(os.environ.get("BTM_DB_POOL_MIN", "1"))
+    max_size = int(os.environ.get("BTM_DB_POOL_MAX", "3"))
+    _pool = await asyncpg.create_pool(dsn, init=_register_jsonb_codec, min_size=min_size, max_size=max_size)
 
 
 @asynccontextmanager

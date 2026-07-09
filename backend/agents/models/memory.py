@@ -33,7 +33,14 @@ class ConversationTurn:
     content: str
 
 
-async def store_turn(tenant_id: str, session_id: str, user_id: str, role: str, content: str, embedding: list[float] | None = None) -> ConversationTurn:
+async def store_turn(
+    tenant_id: str,
+    session_id: str,
+    user_id: str,
+    role: str,
+    content: str,
+    embedding: list[float] | None = None,
+) -> ConversationTurn:
     turn_id = str(uuid.uuid4())
     async with tenant_connection(tenant_id) as conn:
         await conn.execute(
@@ -57,10 +64,7 @@ async def get_recent_turns(tenant_id: str, user_id: str, limit: int = 5) -> list
             user_id,
             limit,
         )
-    return [
-        ConversationTurn(r["turn_id"], r["session_id"], r["tenant_id"], r["user_id"], r["role"], r["content"])
-        for r in rows
-    ]
+    return [ConversationTurn(r["turn_id"], r["session_id"], r["tenant_id"], r["user_id"], r["role"], r["content"]) for r in rows]
 
 
 async def get_closed_sessions_for_destination(tenant_id: str, user_id: str, destination: str, limit: int = 5) -> list[dict]:
@@ -90,8 +94,7 @@ async def store_preference(tenant_id: str, user_id: str, type: str, value: dict)
         next_version = (prior["version"] + 1) if prior else 1
         new_id = str(uuid.uuid4())
         await conn.execute(
-            "INSERT INTO semantic_memories (preference_id, tenant_id, user_id, type, value, version) "
-            "VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO semantic_memories (preference_id, tenant_id, user_id, type, value, version) VALUES ($1, $2, $3, $4, $5, $6)",
             new_id,
             tenant_id,
             user_id,
@@ -116,6 +119,14 @@ async def get_preferences(tenant_id: str, user_id: str) -> list[TravelerPreferen
             user_id,
         )
     return [
-        TravelerPreference(r["preference_id"], r["user_id"], r["tenant_id"], r["type"], r["value"], r["version"], r["superseded_by"])
+        TravelerPreference(
+            r["preference_id"],
+            r["user_id"],
+            r["tenant_id"],
+            r["type"],
+            r["value"],
+            r["version"],
+            r["superseded_by"],
+        )
         for r in rows
     ]

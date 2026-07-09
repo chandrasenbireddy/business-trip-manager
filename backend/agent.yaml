@@ -27,3 +27,42 @@ services:
 region: me-central2  # GCP KSA region
 project: humain-494919
 
+# H2O-O graph (PRD §8.5): every node below is a real @traced function
+# (tools/telemetry.py) — node names match traced()'s node_name arg exactly,
+# so this graph and the OTel node.name span attribute never drift apart.
+# Edges are direct calls; a BFF route (api/routes/trips.py confirm) is the
+# entry point for the confirm->approve/book branch, not an agent node itself.
+graph:
+  nodes:
+    - orchestrator.handle_trip_request
+    - orchestrator.check_calendar_availability
+    - memory.get_airbnb_context
+    - memory.store_turn
+    - memory.retrieve_context
+    - memory.get_preferences
+    - memory.store_preference
+    - memory.summarize_session
+    - memory.link_sessions
+    - planner.run_research
+    - planner.research_category
+    - planner.handle_decision
+    - planner.build_itinerary
+    - booking.notify_approver
+    - booking.book_flight
+    - booking.book_airbnb
+    - booking.add_to_calendar
+    - booking.send_email
+    - booking.execute_booking
+  edges:
+    - [orchestrator.handle_trip_request, orchestrator.check_calendar_availability]
+    - [orchestrator.handle_trip_request, memory.get_airbnb_context]
+    - [orchestrator.handle_trip_request, memory.store_turn]
+    - [orchestrator.handle_trip_request, planner.run_research]
+    - [planner.run_research, memory.get_preferences]
+    - [planner.run_research, memory.retrieve_context]
+    - [planner.handle_decision, planner.build_itinerary]  # once every category is resolved
+    - [booking.execute_booking, booking.book_flight]
+    - [booking.execute_booking, booking.book_airbnb]
+    - [booking.execute_booking, booking.add_to_calendar]
+    - [booking.execute_booking, booking.send_email]
+

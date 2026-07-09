@@ -22,7 +22,9 @@ def test_get_cost_usage_requires_admin(client, auth_cookies):
 
 def test_put_policy_succeeds_for_admin(client, admin_cookies):
     res = client.put(
-        "/admin/policy", json={"approval_threshold": 1000, "approved_airlines": ["SV"]}, cookies=admin_cookies
+        "/admin/policy",
+        json={"approval_threshold": 1000, "approved_airlines": ["SV"]},
+        cookies=admin_cookies,
     )
     assert res.status_code == 200
     assert res.json()["policy"]["approval_threshold"] == 1000

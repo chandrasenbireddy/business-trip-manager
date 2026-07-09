@@ -20,9 +20,7 @@ RIYADH_DETAILS = {
 def test_seat_preference_applied_to_next_trip_without_restating(client, auth_cookies):
     # Trip N: state a seat preference explicitly (spec Story 3, acceptance scenario 3's
     # mechanism — profile settings — is exactly what makes scenario 1 possible).
-    pref_res = client.patch(
-        "/users/me/preferences/seat", json={"value": {"seat": "aisle"}}, cookies=auth_cookies
-    )
+    pref_res = client.patch("/users/me/preferences/seat", json={"value": {"seat": "aisle"}}, cookies=auth_cookies)
     assert pref_res.status_code == 200
     assert isinstance(pref_res.json()["version"], int)
 

@@ -84,7 +84,8 @@ async def _ensure_tenant_and_user(tenant_id: str, email: str, identity: dict) ->
     # app.tenant_id to it before either INSERT, same as any other write.
     async with untenanted_connection() as conn:
         await conn.execute(
-            "INSERT INTO tenants (tenant_id, name) VALUES ($1, $1) ON CONFLICT (tenant_id) DO NOTHING", tenant_id
+            "INSERT INTO tenants (tenant_id, name) VALUES ($1, $1) ON CONFLICT (tenant_id) DO NOTHING",
+            tenant_id,
         )
     async with tenant_connection(tenant_id) as conn:
         await conn.execute(

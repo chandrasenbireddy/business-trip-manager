@@ -6,7 +6,7 @@ spec FR-010/FR-011/FR-012/FR-016.
 """
 
 from agents.base import traced
-from agents.models.cost import record_cost_event
+from agents.models.cost import get_session_cost_summary, record_cost_event
 from agents.models.tenant import OrganizationTravelPolicy
 from tools import events, secrets
 from tools.model_router import primary_model
@@ -68,12 +68,15 @@ async def send_email(itinerary: dict, cost_summary: dict, recipient_address: str
 
 @traced("booking.execute_booking")
 async def execute_booking(
-    session_id: str, session_status: str, itinerary: dict, tenant_id: str | None = None, user_id: str | None = None
+    session_id: str,
+    session_status: str,
+    itinerary: dict,
+    tenant_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict:
     if session_status != "confirmed":
         raise BookingGateError(
-            f"execute_booking called with session_status={session_status!r}; "
-            "MUST be 'confirmed' (constitution Principle IX)"
+            f"execute_booking called with session_status={session_status!r}; MUST be 'confirmed' (constitution Principle IX)"
         )
 
     # spec FR-021/FR-023. tenant_id/user_id are optional so this dedicated
@@ -104,7 +107,12 @@ async def execute_booking(
         await events.publish(session_id, "booking_progress", {"step": "calendar", "status": "failed"})
 
     try:
-        results["email"] = await send_email(itinerary, cost_summary={}, recipient_address="")
+        # cost_summary/recipient_address need a real tenant_id/user_id (T028's
+        # gate test has no DB row behind its session_id, same reason the
+        # record_cost_event call above is guarded) — an empty summary/address
+        # for that no-DB case is the correct degradation, not a bug.
+        cost_summary = await get_session_cost_summary(tenant_id, session_id) if tenant_id else {}
+        results["email"] = await send_email(itinerary, cost_summary=cost_summary, recipient_address=user_id or "")
         await events.publish(session_id, "booking_progress", {"step": "email", "status": "ok"})
     except Exception as exc:  # noqa: BLE001
         results["email"] = {"status": "failed", "error": str(exc)}

@@ -45,6 +45,7 @@ async def search_airbnb(
 
     for listing in listings:
         listing["distance_km"] = round(
-            _haversine_km(reference_point["lat"], reference_point["lng"], listing["lat"], listing["lng"]), 2
+            _haversine_km(reference_point["lat"], reference_point["lng"], listing["lat"], listing["lng"]),
+            2,
         )
     return listings

@@ -48,15 +48,24 @@ async def record_cost_event(
             tokens_out,
             cost_usd,
         )
-    return CostEvent(event_id, session_id, tenant_id, user_id, agent_type, model_id, tokens_in, tokens_out, cost_usd)
+    return CostEvent(
+        event_id,
+        session_id,
+        tenant_id,
+        user_id,
+        agent_type,
+        model_id,
+        tokens_in,
+        tokens_out,
+        cost_usd,
+    )
 
 
 async def get_session_cost_summary(tenant_id: str, session_id: str) -> dict:
     """spec FR-023: session-end cost summary broken down by activity (agent_type)."""
     async with tenant_connection(tenant_id) as conn:
         rows = await conn.fetch(
-            "SELECT agent_type, SUM(cost_usd) AS total FROM cost_events "
-            "WHERE tenant_id = $1 AND session_id = $2 GROUP BY agent_type",
+            "SELECT agent_type, SUM(cost_usd) AS total FROM cost_events WHERE tenant_id = $1 AND session_id = $2 GROUP BY agent_type",
             tenant_id,
             session_id,
         )
@@ -86,7 +95,8 @@ async def get_tenant_cost_usage(tenant_id: str) -> dict:
             tenant_id,
         )
         total_row = await conn.fetchrow(
-            "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM cost_events WHERE tenant_id = $1", tenant_id
+            "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM cost_events WHERE tenant_id = $1",
+            tenant_id,
         )
     return {
         "by_user": {r["user_id"]: float(r["total"]) for r in by_user},

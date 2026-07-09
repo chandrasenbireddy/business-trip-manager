@@ -9,7 +9,7 @@ download path never depends on a blob existing anywhere.
 import html
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from agents.models.cost import get_session_cost_summary
 from agents.models.session import get_options, get_session
@@ -34,12 +34,9 @@ def generate_report_html(session, options: list, cost_summary: dict) -> str:
     trip_request = session.trip_request or {}
     selected = [o for o in options if o.decision == "selected"]
 
-    rows = "".join(
-        f"<tr><td>{html.escape(o.category)}</td><td>{html.escape(str(o.attributes))}</td></tr>" for o in selected
-    )
+    rows = "".join(f"<tr><td>{html.escape(o.category)}</td><td>{html.escape(str(o.attributes))}</td></tr>" for o in selected)
     cost_rows = "".join(
-        f"<tr><td>{html.escape(activity)}</td><td>${amount:.4f}</td></tr>"
-        for activity, amount in cost_summary["by_activity"].items()
+        f"<tr><td>{html.escape(activity)}</td><td>${amount:.4f}</td></tr>" for activity, amount in cost_summary["by_activity"].items()
     )
 
     return f"""<!DOCTYPE html>
@@ -70,7 +67,7 @@ async def get_or_create_report(tenant_id: str, session_id: str) -> dict:
 
     report_id = str(uuid.uuid4())
     link_url = await _upload_to_gcs(report_id, report_html)
-    link_expires_at = datetime.now(timezone.utc) + timedelta(days=LINK_EXPIRY_DAYS) if link_url else None
+    link_expires_at = datetime.now(UTC) + timedelta(days=LINK_EXPIRY_DAYS) if link_url else None
 
     async with tenant_connection(tenant_id) as conn:
         await conn.execute(

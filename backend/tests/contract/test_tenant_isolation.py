@@ -34,12 +34,9 @@ async def two_tenants_with_sessions():
     tenant_a, tenant_b = f"tenant-a-{uuid.uuid4()}", f"tenant-b-{uuid.uuid4()}"
     for tid in (tenant_a, tenant_b):
         await conn.execute("INSERT INTO tenants (tenant_id, name) VALUES ($1, $1)", tid)
+        await conn.execute("INSERT INTO users (user_id, tenant_id) VALUES ($1, $2)", f"user-{tid}", tid)
         await conn.execute(
-            "INSERT INTO users (user_id, tenant_id) VALUES ($1, $2)", f"user-{tid}", tid
-        )
-        await conn.execute(
-            "INSERT INTO sessions (session_id, user_id, tenant_id, status, trip_request) "
-            "VALUES ($1, $2, $3, 'in_progress', '{}'::jsonb)",
+            "INSERT INTO sessions (session_id, user_id, tenant_id, status, trip_request) VALUES ($1, $2, $3, 'in_progress', '{}'::jsonb)",
             f"session-{tid}",
             f"user-{tid}",
             tid,
@@ -62,6 +59,4 @@ async def test_query_without_tenant_scope_is_isolated(two_tenants_with_sessions)
 
     seen_tenants = {row["tenant_id"] for row in rows}
     assert tenant_a in seen_tenants
-    assert tenant_b not in seen_tenants, (
-        "Cross-tenant row leaked — RLS policy (0002_rls.sql) is missing or not applied"
-    )
+    assert tenant_b not in seen_tenants, "Cross-tenant row leaked — RLS policy (0002_rls.sql) is missing or not applied"

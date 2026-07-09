@@ -36,7 +36,10 @@ async def call_with_fallback(agent_role: str, invoke, *args, **kwargs):
         return await invoke(primary, *args, **kwargs)
     except Exception as exc:  # noqa: BLE001 — deliberately broad: any primary-model failure falls back
         span = trace.get_current_span()
-        span.set_attribute("model.fallback_reason", str(exc))
+        # ponytail: exception class only, never str(exc) — a provider SDK error can
+        # echo the failed request (prompt/trip details) into its message, and
+        # constitution Principle XII bans personal data in span attributes.
+        span.set_attribute("model.fallback_reason", type(exc).__name__)
         span.set_attribute("model.fallback_from", primary)
         span.set_attribute("model.fallback_to", fallback)
         return await invoke(fallback, *args, **kwargs)

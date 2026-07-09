@@ -46,7 +46,10 @@ def test_reject_all_three_times_triggers_manual_fallback_other_category_untouche
             json={"decision": "rejected"},
             cookies=auth_cookies,
         )
-        with patch("agents.planner.search_flights", AsyncMock(return_value=[{"id": f"f{i}", "price": price}])):
+        with patch(
+            "agents.planner.search_flights",
+            AsyncMock(return_value=[{"id": f"f{i}", "price": price}]),
+        ):
             res = client.post(
                 f"/trips/{session_id}/categories/flight/research",
                 json={"reason": "too expensive"},
@@ -55,9 +58,9 @@ def test_reject_all_three_times_triggers_manual_fallback_other_category_untouche
         assert res.json()["status"] == "researching"
 
     # Reject attempt 3 (the 3rd rejection) -> this research call must hit the cap.
-    flight_option = next(
-        c for c in client.get(f"/trips/{session_id}", cookies=auth_cookies).json()["categories"] if c["name"] == "flight"
-    )["options"][0]
+    flight_option = next(c for c in client.get(f"/trips/{session_id}", cookies=auth_cookies).json()["categories"] if c["name"] == "flight")[
+        "options"
+    ][0]
     client.post(
         f"/trips/{session_id}/options/{flight_option['option_id']}/decision",
         json={"decision": "rejected"},

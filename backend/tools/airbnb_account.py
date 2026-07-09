@@ -25,16 +25,16 @@ async def _run_authenticated_session(session_cookie: str) -> dict:
 @traced("tools.fetch_airbnb_account", tool_name="fetch_airbnb_account")
 async def fetch_airbnb_account(user_id: str) -> dict:
     """`{upcoming_reservations[], past_stays[], wishlist[]}` on success, or
-    `{status: "cookie_expired"}` — the caller (agents/memory.py) MUST
-    continue with anonymous search rather than propagate a failure (FR-029).
-    A traveler who never connected an account at all hits the same
-    `cookie_expired` path — from here, "no credential" and "expired
-    credential" require the identical degrade-gracefully response.
+    `{status: "cookie_expired" | "not_connected"}` — either way the caller
+    (agents/memory.py) MUST continue with anonymous search rather than
+    propagate a failure (FR-029). The two failure statuses only matter for
+    the reconnect-nudge UI ("connect" vs "reconnect" wording, spec FR-029) —
+    research degradation is identical for both.
     """
     try:
         session_cookie = secrets.resolve(f"{user_id}/airbnb_session_cookie")
     except Exception:
-        return {"status": "cookie_expired"}
+        return {"status": "not_connected"}
 
     try:
         result = await _run_authenticated_session(session_cookie)

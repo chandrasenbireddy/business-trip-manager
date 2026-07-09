@@ -58,8 +58,7 @@ async def set_policy(tenant_id: str, updates: dict) -> OrganizationTravelPolicy:
     """
     async with tenant_connection(tenant_id) as conn:
         row = await conn.fetchrow(
-            "UPDATE tenants SET travel_policy = travel_policy || $1 "
-            "WHERE tenant_id = $2 RETURNING travel_policy",
+            "UPDATE tenants SET travel_policy = travel_policy || $1 WHERE tenant_id = $2 RETURNING travel_policy",
             updates,
             tenant_id,
         )

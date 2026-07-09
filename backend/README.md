@@ -13,6 +13,20 @@ See `specs/001-business-travel-manager/` in the [btm Speckit workspace](https://
 - `db/migrations/` — schema + Row-Level Security policies
 - `tests/` — contract, integration, unit
 
+## Deployment
+
+`agent.yaml` is the Turing deployment block: services, GCP region/project
+(PDPL/KSA data residency, constitution Principle XII), and the H2O-O graph —
+the real agent/tool call graph, with node names matching `@traced`'s
+`node_name` exactly so the graph and OTel spans never drift apart. When the
+`h2o_substrate.sdk` migration lands (PRD §8.5), this graph is what its node
+decorators wrap; business logic and the OTel attribute schema stay unchanged.
+
+`BTM_DB_POOL_MIN`/`BTM_DB_POOL_MAX` (default 1/3, `tools/db_context.py`) size
+the asyncpg pool — the small default exists so the test suite (which
+re-inits the pool per test) never exhausts Postgres's connection limit. A
+real deployment under concurrent tenant load should override both.
+
 ## Local development
 
 ```bash

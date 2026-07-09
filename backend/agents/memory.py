@@ -4,11 +4,13 @@ spec FR-013 (versioned preferences), FR-014 (trip history informs future
 research to the same destination).
 """
 
+from dataclasses import asdict
+
 from agents.base import traced
+from agents.models.airbnb_account import AirbnbAccountContext
 from agents.models.cost import record_cost_event
-from agents.models.memory import get_closed_sessions_for_destination
+from agents.models.memory import get_closed_sessions_for_destination, get_recent_turns
 from agents.models.memory import get_preferences as _get_preferences
-from agents.models.memory import get_recent_turns
 from agents.models.memory import store_preference as _store_preference
 from agents.models.memory import store_turn as _store_turn
 from agents.models.session import get_session
@@ -20,20 +22,25 @@ from tools.model_router import primary_model
 @traced("memory.get_airbnb_context", tool_name="get_airbnb_context")
 async def get_airbnb_context(user_id: str) -> dict:
     """spec FR-026/FR-029: called at session start (contracts/agent-tools.md).
-    `cookie_expired` degrades gracefully — the caller (planner.run_research)
-    proceeds with anonymous accommodation search, never blocked (constitution
-    Principle XI).
+    Both failure statuses degrade identically for research purposes — the
+    distinction only matters for the reconnect-nudge UI's wording.
     """
     result = await fetch_airbnb_account(user_id)
-    if result.get("status") == "cookie_expired":
-        return {"connected": True, "cookie_status": "expired", "upcoming_reservations": [], "past_stays": [], "wishlist": []}
-    return {
-        "connected": True,
-        "cookie_status": "valid",
-        "upcoming_reservations": result["upcoming_reservations"],
-        "past_stays": result["past_stays"],
-        "wishlist": result["wishlist"],
-    }
+    status = result.get("status")
+    if status == "not_connected":
+        context = AirbnbAccountContext(user_id=user_id, connected=False, cookie_status="expired")
+    elif status == "cookie_expired":
+        context = AirbnbAccountContext(user_id=user_id, connected=True, cookie_status="expired")
+    else:
+        context = AirbnbAccountContext(
+            user_id=user_id,
+            connected=True,
+            cookie_status="valid",
+            upcoming_reservations=result["upcoming_reservations"],
+            past_stays=result["past_stays"],
+            wishlist=result["wishlist"],
+        )
+    return asdict(context)
 
 
 def check_date_conflict(upcoming_reservations: list[dict], start_date: str, end_date: str) -> list[dict]:
@@ -67,9 +74,7 @@ async def retrieve_context(tenant_id: str, user_id: str, destination: str | None
     satisfy spec Story 3's acceptance scenarios.
     """
     turns = await get_recent_turns(tenant_id, user_id, limit=k)
-    relevant_history = (
-        await get_closed_sessions_for_destination(tenant_id, user_id, destination, limit=k) if destination else []
-    )
+    relevant_history = await get_closed_sessions_for_destination(tenant_id, user_id, destination, limit=k) if destination else []
     return {
         "turns": [t.__dict__ for t in turns],
         "relevant_history": relevant_history,

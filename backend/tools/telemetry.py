@@ -64,9 +64,7 @@ def init_tracing(otlp_endpoint: str, langfuse_otlp_endpoint: str) -> None:
     """
     provider = TracerProvider(resource=Resource.create({"service.name": "btm-backend"}))
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)))
-    provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=langfuse_otlp_endpoint))
-    )
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=langfuse_otlp_endpoint)))
     trace.set_tracer_provider(provider)
 
 
@@ -79,6 +77,11 @@ def traced(node_name: str, tool_name: str = ""):
     don't invoke a model directly, but tenant.id/session.id/agent.id/
     agent.version/graph.run.id always come from the ambient RunContext and are
     never optional.
+
+    ponytail: async-only — every agent/tool function in this codebase already
+    is (Strands, FastAPI, and asyncpg are all async-native); add a sync path
+    back if a genuinely sync one ever shows up, rather than carrying an
+    untested branch for a case that doesn't exist yet.
     """
 
     def decorator(fn):
@@ -96,23 +99,7 @@ def traced(node_name: str, tool_name: str = ""):
                 _set_attrs(span, ctx, node_name, tool_name, result)
                 return result
 
-        @functools.wraps(fn)
-        def sync_wrapper(*args, **kwargs):
-            ctx = _current.get()
-            if ctx is None:
-                raise RuntimeError(
-                    f"traced({node_name}) called with no active RunContext — "
-                    "tenant.id/session.id would be missing, which is a constitution violation"
-                )
-            tracer = trace.get_tracer("btm")
-            with tracer.start_as_current_span(node_name) as span:
-                result = fn(*args, **kwargs)
-                _set_attrs(span, ctx, node_name, tool_name, result)
-                return result
-
-        import asyncio
-
-        return async_wrapper if asyncio.iscoroutinefunction(fn) else sync_wrapper
+        return async_wrapper
 
     return decorator
 

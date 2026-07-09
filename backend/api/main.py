@@ -43,4 +43,3 @@ async def me(request: Request):
         "tenant_id": request.state.tenant_id,
         "is_admin": request.state.is_admin,
     }
-

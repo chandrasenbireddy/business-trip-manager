@@ -7,7 +7,13 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 
 from agents import booking, planner
 from agents.models.cost import get_session_cost_summary
-from agents.models.session import get_options, get_session, list_sessions_for_user, record_confirmation, update_session_status
+from agents.models.session import (
+    get_options,
+    get_session,
+    list_sessions_for_user,
+    record_confirmation,
+    update_session_status,
+)
 from agents.models.tenant import get_tenant
 from agents.orchestrator import handle_trip_request
 from tools import events
@@ -81,9 +87,7 @@ async def record_option_decision(session_id: str, option_id: str, body: dict, re
     if option is None:
         raise HTTPException(404, "Option not found")
 
-    await planner.handle_decision(
-        tenant_id, session_id, option_id, body["decision"], shown_snapshot=option.attributes
-    )
+    await planner.handle_decision(tenant_id, session_id, option_id, body["decision"], shown_snapshot=option.attributes)
     return {"category_status": "recorded"}
 
 
@@ -91,9 +95,7 @@ async def record_option_decision(session_id: str, option_id: str, body: dict, re
 async def research_category(session_id: str, category: str, body: dict, request: Request):
     """spec FR-007/FR-008: re-search one category from a stated rejection reason,
     capped at 3 shown attempts (contracts/bff-api.md)."""
-    result = await planner.research_category(
-        request.state.tenant_id, session_id, category, reason=body.get("reason", "")
-    )
+    result = await planner.research_category(request.state.tenant_id, session_id, category, reason=body.get("reason", ""))
     return result
 
 

@@ -106,7 +106,10 @@ def test_connected_account_surfaces_conflict_and_ranks_badges(client, auth_cooki
 def test_expired_account_degrades_without_blocking_and_status_reflects_it(client, auth_cookies):
     with (
         patch("agents.orchestrator._extract_trip_details", AsyncMock(return_value=RIYADH_DETAILS)),
-        patch("agents.memory.fetch_airbnb_account", AsyncMock(return_value={"status": "cookie_expired"})),
+        patch(
+            "agents.memory.fetch_airbnb_account",
+            AsyncMock(return_value={"status": "cookie_expired"}),
+        ),
         patch("agents.planner.search_flights", AsyncMock(return_value=[{"id": "f1", "price": 400}])),
         patch("agents.planner.search_airbnb", AsyncMock(return_value=[{"id": "a1", "price": 600}])),
     ):

@@ -62,7 +62,11 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
     # session. tokens/cost are 0 until a real model call replaces
     # _extract_trip_details's stub — the recording pipeline itself is real.
     await record_cost_event(
-        tenant_id, session.session_id, user_id, agent_type="orchestrator", model_id=primary_model("orchestrator")
+        tenant_id,
+        session.session_id,
+        user_id,
+        agent_type="orchestrator",
+        model_id=primary_model("orchestrator"),
     )
 
     from agents.memory import check_date_conflict, get_airbnb_context, store_turn
@@ -70,7 +74,10 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
     await store_turn(tenant_id, session.session_id, user_id, role="traveler", content=description)
 
     conflicts = await check_calendar_availability(
-        user_id, details["start_date"], details["end_date"], calendar_credentials_ref=f"{user_id}/google_calendar_token"
+        user_id,
+        details["start_date"],
+        details["end_date"],
+        calendar_credentials_ref=f"{user_id}/google_calendar_token",
     )
     if conflicts:
         await events.publish(session.session_id, "calendar_conflict", {"conflicts": conflicts})
@@ -78,9 +85,7 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
     # spec FR-026/FR-027: called at session start (contracts/agent-tools.md,
     # AR-07) — cookie_expired degrades to anonymous search, never blocking.
     airbnb_context = await get_airbnb_context(user_id)
-    reservation_conflicts = check_date_conflict(
-        airbnb_context["upcoming_reservations"], details["start_date"], details["end_date"]
-    )
+    reservation_conflicts = check_date_conflict(airbnb_context["upcoming_reservations"], details["start_date"], details["end_date"])
     if reservation_conflicts:
         await events.publish(session.session_id, "airbnb_conflict", {"reservations": reservation_conflicts})
 

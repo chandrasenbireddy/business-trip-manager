@@ -76,11 +76,7 @@ def apply_policy(options: list[dict], category: str, policy: OrganizationTravelP
             if (policy.max_flight_budget is None or o.get("price", 0) <= policy.max_flight_budget)
             and (not policy.approved_airlines or o.get("airline") in policy.approved_airlines)
         ]
-    return [
-        o
-        for o in options
-        if policy.max_hotel_budget_per_night is None or o.get("price", 0) <= policy.max_hotel_budget_per_night
-    ]
+    return [o for o in options if policy.max_hotel_budget_per_night is None or o.get("price", 0) <= policy.max_hotel_budget_per_night]
 
 
 def rank_and_badge_accommodations(options: list[dict], airbnb_context: dict, destination: str) -> list[dict]:
@@ -91,9 +87,7 @@ def rank_and_badge_accommodations(options: list[dict], airbnb_context: dict, des
     FR-029 — no special-casing needed here).
     """
     wishlist_ids = {w.get("listing_id") for w in airbnb_context.get("wishlist", [])}
-    past_stay_ids = {
-        s.get("listing_id") for s in airbnb_context.get("past_stays", []) if s.get("destination") == destination
-    }
+    past_stay_ids = {s.get("listing_id") for s in airbnb_context.get("past_stays", []) if s.get("destination") == destination}
 
     def rank(option: dict) -> int:
         if option.get("id") in wishlist_ids:
@@ -124,7 +118,11 @@ async def _search_with_broaden_retry(category: str, trip_request: dict, notes: s
 
 @traced("planner.run_research")
 async def run_research(
-    session_id: str, tenant_id: str, user_id: str, trip_request: dict, airbnb_context: dict | None = None
+    session_id: str,
+    tenant_id: str,
+    user_id: str,
+    trip_request: dict,
+    airbnb_context: dict | None = None,
 ) -> None:
     """spec Story 3 (FR-013/FR-014): preferences and destination history are
     read before first-pass research, so results already reflect them without
@@ -136,15 +134,15 @@ async def run_research(
     from agents.memory import get_preferences, retrieve_context
 
     preferences = (await get_preferences(tenant_id, user_id))["preferences"]
-    history = (await retrieve_context(tenant_id, user_id, destination=trip_request.get("destination")))[
-        "relevant_history"
-    ]
+    history = (await retrieve_context(tenant_id, user_id, destination=trip_request.get("destination")))["relevant_history"]
 
     await events.publish(session_id, "research_started", {"categories": list(CATEGORIES)})
 
     flight_results, accommodation_results = await asyncio.gather(
         _search_with_broaden_retry(
-            "flight", trip_request, notes=f"{_preference_notes(preferences, 'flight')} {_history_notes(history)}".strip()
+            "flight",
+            trip_request,
+            notes=f"{_preference_notes(preferences, 'flight')} {_history_notes(history)}".strip(),
         ),
         _search_with_broaden_retry(
             "accommodation",
@@ -168,9 +166,7 @@ async def run_research(
             compliant = rank_and_badge_accommodations(compliant, airbnb_context, trip_request.get("destination"))
         created = await add_research_options(tenant_id, session_id, category, compliant, attempt_number=1)
         for option in created:
-            await events.publish(
-                session_id, "card_ready", {"category": category, "option": option.__dict__}
-            )
+            await events.publish(session_id, "card_ready", {"category": category, "option": option.__dict__})
 
 
 @traced("planner.research_category")
@@ -206,9 +202,7 @@ async def research_category(tenant_id: str, session_id: str, category: str, reas
 
 
 @traced("planner.handle_decision")
-async def handle_decision(
-    tenant_id: str, session_id: str, option_id: str, decision: str, shown_snapshot: dict
-) -> None:
+async def handle_decision(tenant_id: str, session_id: str, option_id: str, decision: str, shown_snapshot: dict) -> None:
     await record_decision(tenant_id, option_id, decision, shown_snapshot)
 
     options = await get_options(tenant_id, session_id)
@@ -228,9 +222,9 @@ async def handle_decision(
         elif all_rejected:
             await events.publish(session_id, "category_complete", {"category": category, "outcome": "all_rejected"})
 
-    all_complete = all(
-        any(o.decision == "selected" for o in opts) for opts in by_category.values()
-    ) and set(by_category.keys()) == set(CATEGORIES)
+    all_complete = all(any(o.decision == "selected" for o in opts) for opts in by_category.values()) and set(by_category.keys()) == set(
+        CATEGORIES
+    )
 
     if all_complete:
         await build_itinerary(tenant_id, session_id)
@@ -246,15 +240,15 @@ async def build_itinerary(tenant_id: str, session_id: str) -> dict:
     options = await get_options(tenant_id, session_id)
     selected = {o.category: o.attributes for o in options if o.decision == "selected"}
 
-    total_cost = sum(
-        float(attrs.get("price", 0)) for attrs in selected.values()
-    )
+    total_cost = sum(float(attrs.get("price", 0)) for attrs in selected.values())
     budget = (session.trip_request or {}).get("budget")
 
     itinerary = {"selections": selected, "total_cost": total_cost, "budget": budget}
     await set_itinerary(tenant_id, session_id, itinerary, total_cost)
     await update_session_status(tenant_id, session_id, "awaiting_approval")
     await events.publish(
-        session_id, "itinerary_ready", {"itinerary": itinerary, "total_cost": total_cost, "budget": budget}
+        session_id,
+        "itinerary_ready",
+        {"itinerary": itinerary, "total_cost": total_cost, "budget": budget},
     )
     return itinerary

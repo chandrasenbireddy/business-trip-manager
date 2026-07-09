@@ -11,7 +11,7 @@ these queries use tools.db_context.untenanted_connection, not tenant_connection.
 import secrets as _secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from tools.db_context import untenanted_connection
 
@@ -40,7 +40,7 @@ async def approve_and_invite(email: str) -> WaitlistEntry:
     always fresh, even for a re-invite of a previously-expired one.
     """
     token = uuid.uuid4().hex + _secrets.token_hex(16)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRY_HOURS)
+    expires_at = datetime.now(UTC) + timedelta(hours=TOKEN_EXPIRY_HOURS)
     async with untenanted_connection() as conn:
         row = await conn.fetchrow(
             "UPDATE waitlist SET status = 'invited', invited_at = now(), activation_token = $1, token_expires_at = $2 "
@@ -69,7 +69,7 @@ def is_token_valid(entry: WaitlistEntry) -> bool:
     """
     if entry.status != "invited" or entry.token_expires_at is None:
         return False
-    return datetime.now(timezone.utc) <= entry.token_expires_at
+    return datetime.now(UTC) <= entry.token_expires_at
 
 
 async def activate(email: str) -> None:

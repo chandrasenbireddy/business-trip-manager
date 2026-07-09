@@ -4,7 +4,7 @@ flow (72-hour expiry, single-use token, spec FR-032).
 T096 — written before these endpoints exist (T099/T100); MUST fail until then.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from agents.models.waitlist import approve_and_invite, get_by_token, is_token_valid
 
@@ -30,7 +30,7 @@ async def test_approve_and_invite_issues_a_72_hour_single_use_token():
 
     assert entry.activation_token is not None
     assert entry.status == "invited"
-    expected_expiry = datetime.now(timezone.utc) + timedelta(hours=72)
+    expected_expiry = datetime.now(UTC) + timedelta(hours=72)
     assert abs((entry.token_expires_at - expected_expiry).total_seconds()) < 5
 
     fetched = await get_by_token(entry.activation_token)
@@ -49,7 +49,7 @@ async def test_expired_token_is_rejected():
     async with untenanted_connection() as conn:
         await conn.execute(
             "UPDATE waitlist SET token_expires_at = $1 WHERE email = $2",
-            datetime.now(timezone.utc) - timedelta(hours=1),
+            datetime.now(UTC) - timedelta(hours=1),
             email,
         )
 

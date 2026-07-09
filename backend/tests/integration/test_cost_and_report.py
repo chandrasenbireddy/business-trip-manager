@@ -43,9 +43,14 @@ def test_full_trip_produces_cost_summary_and_shareable_report(client, auth_cooki
     cost_res = client.get(f"/trips/{session_id}/cost-summary", cookies=auth_cookies)
     assert cost_res.status_code == 200
     by_activity = cost_res.json()["by_activity"]
-    assert {"orchestrator", "planner", "scraper_flights", "scraper_airbnb", "memory", "booking"} <= set(
-        by_activity.keys()
-    )
+    assert {
+        "orchestrator",
+        "planner",
+        "scraper_flights",
+        "scraper_airbnb",
+        "memory",
+        "booking",
+    } <= set(by_activity.keys())
 
     # spec FR-024/025: self-contained document, downloadable, and (here, since
     # the upload succeeds) also shareable via a link with an expiry.

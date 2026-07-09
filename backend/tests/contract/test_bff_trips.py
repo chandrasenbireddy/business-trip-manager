@@ -52,9 +52,7 @@ def test_post_trips_ambiguous_request_asks_one_clarifying_question(client, auth_
 
 
 def test_get_trip_returns_categories(client, auth_cookies, mocked_research):
-    created = client.post(
-        "/trips", json={"description": "3 nights in Riyadh near KAFD"}, cookies=auth_cookies
-    ).json()
+    created = client.post("/trips", json={"description": "3 nights in Riyadh near KAFD"}, cookies=auth_cookies).json()
     res = client.get(f"/trips/{created['session_id']}", cookies=auth_cookies)
     assert res.status_code == 200
     body = res.json()

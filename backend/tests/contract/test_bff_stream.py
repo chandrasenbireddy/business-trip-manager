@@ -44,9 +44,17 @@ EXPECTED_EVENT_NAMES = {
 def _run_to_booking_complete(client, cookies, description, extra_patches=()):
     with ExitStack() as stack:
         stack.enter_context(patch("agents.orchestrator._extract_trip_details", AsyncMock(return_value=RIYADH_DETAILS)))
-        stack.enter_context(patch("agents.planner.search_flights", AsyncMock(return_value=[{"id": "f1", "price": 400}])))
         stack.enter_context(
-            patch("agents.planner.search_airbnb", AsyncMock(return_value=[{"id": "a1", "price": 600, "distance_km": 1.2}]))
+            patch(
+                "agents.planner.search_flights",
+                AsyncMock(return_value=[{"id": "f1", "price": 400}]),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "agents.planner.search_airbnb",
+                AsyncMock(return_value=[{"id": "a1", "price": 600, "distance_km": 1.2}]),
+            )
         )
         stack.enter_context(patch("agents.booking.add_to_calendar", AsyncMock(return_value={"status": "ok"})))
         stack.enter_context(patch("agents.booking.send_email", AsyncMock(return_value={"status": "ok"})))
@@ -104,7 +112,11 @@ def test_calendar_conflict_event_shape(client, auth_cookies):
                 "agents.orchestrator._fetch_calendar_conflicts",
                 AsyncMock(
                     return_value=[
-                        {"event_title": "Board sync", "start": "2026-11-11T09:00:00Z", "end": "2026-11-11T10:00:00Z"}
+                        {
+                            "event_title": "Board sync",
+                            "start": "2026-11-11T09:00:00Z",
+                            "end": "2026-11-11T10:00:00Z",
+                        }
                     ]
                 ),
             ),

@@ -40,7 +40,10 @@ async def test_search_airbnb_computes_distance_from_reference_point():
         AsyncMock(return_value=[{"listing_id": "abc", "lat": 24.762, "lng": 46.635}]),
     ):
         result = await search_airbnb(
-            destination="Riyadh", reference_point={"lat": 24.764, "lng": 46.639}, checkin="2026-11-10", checkout="2026-11-13"
+            destination="Riyadh",
+            reference_point={"lat": 24.764, "lng": 46.639},
+            checkin="2026-11-10",
+            checkout="2026-11-13",
         )
     assert "distance_km" in result[0]
 
@@ -50,6 +53,9 @@ async def test_search_airbnb_retries_once_then_raises():
     with patch("scrapers.airbnb._run_browser_search", AsyncMock(side_effect=TimeoutError)) as mock_search:
         with pytest.raises(TimeoutError):
             await search_airbnb(
-                destination="Riyadh", reference_point={"lat": 24.764, "lng": 46.639}, checkin="2026-11-10", checkout="2026-11-13"
+                destination="Riyadh",
+                reference_point={"lat": 24.764, "lng": 46.639},
+                checkin="2026-11-10",
+                checkout="2026-11-13",
             )
     assert mock_search.await_count == 2

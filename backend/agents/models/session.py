@@ -38,8 +38,7 @@ async def create_session(tenant_id: str, user_id: str, trip_request: dict) -> Tr
     session_id = str(uuid.uuid4())
     async with tenant_connection(tenant_id) as conn:
         await conn.execute(
-            "INSERT INTO sessions (session_id, user_id, tenant_id, status, trip_request) "
-            "VALUES ($1, $2, $3, 'in_progress', $4)",
+            "INSERT INTO sessions (session_id, user_id, tenant_id, status, trip_request) VALUES ($1, $2, $3, 'in_progress', $4)",
             session_id,
             user_id,
             tenant_id,
@@ -68,8 +67,7 @@ async def list_sessions_for_user(tenant_id: str, user_id: str, limit: int = 20) 
     """History page (spec Story 3, T065) — most recent first."""
     async with tenant_connection(tenant_id) as conn:
         rows = await conn.fetch(
-            "SELECT session_id, trip_request, status, created_at FROM sessions "
-            "WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
+            "SELECT session_id, trip_request, status, created_at FROM sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
             user_id,
             limit,
         )
@@ -86,9 +84,7 @@ async def list_sessions_for_user(tenant_id: str, user_id: str, limit: int = 20) 
 
 async def update_session_status(tenant_id: str, session_id: str, status: str) -> None:
     async with tenant_connection(tenant_id) as conn:
-        await conn.execute(
-            "UPDATE sessions SET status = $1 WHERE session_id = $2", status, session_id
-        )
+        await conn.execute("UPDATE sessions SET status = $1 WHERE session_id = $2", status, session_id)
 
 
 async def set_itinerary(tenant_id: str, session_id: str, itinerary: dict, total_cost_usd: float) -> None:
@@ -126,7 +122,15 @@ async def add_research_options(
                 badge,
             )
             created.append(
-                ResearchOption(option_id, session_id, tenant_id, category, attrs, badge=badge, attempt_number=attempt_number)
+                ResearchOption(
+                    option_id,
+                    session_id,
+                    tenant_id,
+                    category,
+                    attrs,
+                    badge=badge,
+                    attempt_number=attempt_number,
+                )
             )
     return created
 
@@ -134,8 +138,7 @@ async def add_research_options(
 async def get_max_attempt_number(tenant_id: str, session_id: str, category: str) -> int:
     async with tenant_connection(tenant_id) as conn:
         row = await conn.fetchrow(
-            "SELECT COALESCE(MAX(attempt_number), 0) AS max_attempt FROM research_options "
-            "WHERE session_id = $1 AND category = $2",
+            "SELECT COALESCE(MAX(attempt_number), 0) AS max_attempt FROM research_options WHERE session_id = $1 AND category = $2",
             session_id,
             category,
         )
@@ -171,8 +174,7 @@ async def record_decision(tenant_id: str, option_id: str, decision: str, shown_s
     """
     async with tenant_connection(tenant_id) as conn:
         row = await conn.fetchrow(
-            "UPDATE research_options SET decision = $1, decided_at = now() "
-            "WHERE option_id = $2 RETURNING session_id",
+            "UPDATE research_options SET decision = $1, decided_at = now() WHERE option_id = $2 RETURNING session_id",
             decision,
             option_id,
         )
@@ -212,5 +214,3 @@ async def get_approval_events(tenant_id: str, limit: int = 100) -> list[dict]:
             limit,
         )
     return [dict(r) for r in rows]
-
-

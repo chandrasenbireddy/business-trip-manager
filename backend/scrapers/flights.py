@@ -6,12 +6,18 @@ from agents.base import traced
 
 
 async def _run_browser_search(
-    origin: str, destination: str, depart_date: str, return_date: str | None, notes: str, broaden: bool
+    origin: str,
+    destination: str,
+    depart_date: str,
+    return_date: str | None,
+    notes: str,
+    broaden: bool,
 ) -> list[dict]:
     task = (
         f"Search Google Flights for a flight from {origin} to {destination} "
-        f"departing {depart_date}" + (f" returning {return_date}" if return_date else "") +
-        ". Return the top results as price, airline, departure/arrival time, stops."
+        f"departing {depart_date}"
+        + (f" returning {return_date}" if return_date else "")
+        + ". Return the top results as price, airline, departure/arrival time, stops."
     )
     if notes:
         task += f" The traveler said: {notes!r} — take that into account."
