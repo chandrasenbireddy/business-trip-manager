@@ -46,6 +46,23 @@ pytest
 ruff check .
 ```
 
+Set `DEV_BYPASS=true` in `.env` to skip the session-cookie/waitlist/OAuth
+onboarding flow entirely and hit any endpoint immediately as a fixed
+dev-tenant admin (`api/middleware/auth.py`) — useful for exercising `/trips`
+etc. without running the invite → approve → Google consent dance first.
+Requires the exact string `"true"`; never set this anywhere near a real
+deployment (there is no runtime check beyond that — see the comment next to
+it in `.env.example`).
+
+**Gotcha**: `browser_use` (a `scrapers/` dependency) calls `load_dotenv()` at
+its own import time, which happens the first time anything in the process
+imports `api.main` — this pulls whatever's in your local `.env` into
+`os.environ` for the rest of that process, including `DEV_BYPASS` if you've
+set it. `tests/conftest.py` forces that import and clears `DEV_BYPASS` at
+collection time specifically so a local dev `.env` can't silently change
+what the test suite authenticates as; if you add another env var here that
+tests should never inherit from a real `.env`, clear it there too.
+
 Run every migration in order: `0001_initial.sql` … `0006_shareable_reports.sql`.
 `0003_app_role.sql` creates the `btm_app` role (set its password via
 `psql -v btm_app_password=...`, never hardcode it) and grants it privileges

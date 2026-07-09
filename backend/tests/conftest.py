@@ -8,6 +8,21 @@ import os
 os.environ.setdefault("BTM_SESSION_SECRET", "test-secret-do-not-use-in-prod")
 os.environ.setdefault("BTM_DATABASE_URL", os.environ.get("TEST_DATABASE_URL", ""))
 
+# browser_use (imported transitively via scrapers/flights.py ->
+# agents/planner.py -> agents/orchestrator.py -> api.main) calls
+# load_dotenv() at ITS OWN module import time, which happens exactly once
+# per process — the first thing anywhere in the whole test session to
+# import api.main pulls the developer's real .env into os.environ. If that
+# .env has DEV_BYPASS=true (api/middleware/auth.py) set for local dev, every
+# test after that first import would otherwise silently run with
+# authentication bypassed instead of the tenant/user the test actually
+# expects. Force that import here, at collection time, before any test
+# fixture (or test body) runs, then immediately undo the one var that
+# matters for test correctness.
+import api.main  # noqa: E402, F401
+
+os.environ.pop("DEV_BYPASS", None)
+
 import asyncpg
 import pytest
 from authlib.jose import jwt
