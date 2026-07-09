@@ -68,7 +68,7 @@ def test_client_config_resolves_nvidia_base_url_and_key_for_orchestrator_primary
         del os.environ["NVIDIA_API_KEY"]
     assert cfg["provider"] == "nvidia"
     assert cfg["base_url"] == "https://integrate.api.nvidia.com/v1"
-    assert cfg["model"] == "nemotron-3-ultra-550b-a55b"
+    assert cfg["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
     assert cfg["api_key"] == "test-nvidia-key"
 
 

@@ -29,12 +29,25 @@ providers:
     base_url: http://host.docker.internal:11434
     api_key_env: null
 
+# Every NVIDIA `model` value below is the FULL catalog id (including the
+# creator-org prefix — nvidia/, minimaxai/, deepseek-ai/, z-ai/) exactly as
+# returned by GET /v1/models against https://integrate.api.nvidia.com/v1 —
+# that prefix is part of the model id itself, not a stand-in for the
+# `provider` field above it. Verified for real against the live API
+# (2026-07-09) after every one of these 404'd with a shorter id that dropped
+# the org prefix, assuming it was redundant with `provider: nvidia`; it
+# isn't — `provider` says which HOST to call, the org prefix says which
+# CREATOR's model to run on that host, and NVIDIA hosts models from several
+# creators. Re-verify here if a `model_not_found` shows up again — don't
+# re-guess the id from the name alone.
 orchestrator:
-  primary: {provider: nvidia, model: nemotron-3-ultra-550b-a55b}
-  fallback: {provider: groq, model: llama-3.3-70b}
+  primary: {provider: nvidia, model: "nvidia/nemotron-3-ultra-550b-a55b"}
+  # Groq's real slug is llama-3.3-70b-versatile, not llama-3.3-70b (also
+  # verified against GET /v1/models — the shorter name 404'd too).
+  fallback: {provider: groq, model: "llama-3.3-70b-versatile"}
 
 planner:
-  primary: {provider: nvidia, model: "minimax/minimax-m3"}
+  primary: {provider: nvidia, model: "minimaxai/minimax-m3"}
 
 booking:
   primary: {provider: nvidia, model: "deepseek-ai/deepseek-v4-flash"}

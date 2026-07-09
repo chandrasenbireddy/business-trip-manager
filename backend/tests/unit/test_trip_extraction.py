@@ -54,7 +54,7 @@ async def test_extract_trip_details_calls_nvidia_primary_and_parses_the_response
     assert result["origin"] is None
 
     call_kwargs = mock_create.await_args.kwargs
-    assert call_kwargs["model"] == "nemotron-3-ultra-550b-a55b"
+    assert call_kwargs["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
     assert call_kwargs["response_format"] == {"type": "json_object"}
     client_kwargs = mock_openai_cls.call_args.kwargs
     assert client_kwargs["base_url"] == "https://integrate.api.nvidia.com/v1"
@@ -73,7 +73,7 @@ async def test_extract_trip_details_falls_back_to_groq_on_primary_failure():
     second_client_kwargs = mock_openai_cls.call_args_list[1].kwargs
     assert second_client_kwargs["base_url"] == "https://api.groq.com/openai/v1"
     second_call_kwargs = mock_create.await_args_list[1].kwargs
-    assert second_call_kwargs["model"] == "llama-3.3-70b"
+    assert second_call_kwargs["model"] == "llama-3.3-70b-versatile"
 
 
 def test_parse_extraction_strips_a_markdown_json_fence():
