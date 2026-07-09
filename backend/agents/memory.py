@@ -11,7 +11,41 @@ from agents.models.memory import get_recent_turns
 from agents.models.memory import store_preference as _store_preference
 from agents.models.memory import store_turn as _store_turn
 from agents.models.session import get_session
+from tools.airbnb_account import fetch_airbnb_account
 from tools.embeddings import embed
+
+
+@traced("memory.get_airbnb_context", tool_name="get_airbnb_context")
+async def get_airbnb_context(user_id: str) -> dict:
+    """spec FR-026/FR-029: called at session start (contracts/agent-tools.md).
+    `cookie_expired` degrades gracefully — the caller (planner.run_research)
+    proceeds with anonymous accommodation search, never blocked (constitution
+    Principle XI).
+    """
+    result = await fetch_airbnb_account(user_id)
+    if result.get("status") == "cookie_expired":
+        return {"connected": True, "cookie_status": "expired", "upcoming_reservations": [], "past_stays": [], "wishlist": []}
+    return {
+        "connected": True,
+        "cookie_status": "valid",
+        "upcoming_reservations": result["upcoming_reservations"],
+        "past_stays": result["past_stays"],
+        "wishlist": result["wishlist"],
+    }
+
+
+def check_date_conflict(upcoming_reservations: list[dict], start_date: str, end_date: str) -> list[dict]:
+    """spec FR-027: warn before research begins if requested dates overlap an
+    existing Airbnb reservation. ISO date strings compare correctly as plain
+    strings — no date parsing needed for range overlap.
+    """
+    conflicts = []
+    for reservation in upcoming_reservations:
+        dates = reservation.get("dates", {})
+        r_start, r_end = dates.get("checkin"), dates.get("checkout")
+        if r_start and r_end and r_start <= end_date and start_date <= r_end:
+            conflicts.append(reservation)
+    return conflicts
 
 
 @traced("memory.store_turn", tool_name="store_turn")

@@ -104,21 +104,30 @@ async def set_itinerary(tenant_id: str, session_id: str, itinerary: dict, total_
 async def add_research_options(
     tenant_id: str, session_id: str, category: str, options: list[dict], attempt_number: int = 1
 ) -> list[ResearchOption]:
+    """A `badge` key on an option dict (spec FR-028: "wishlisted" | "past_stay")
+    is stored in its own column, not folded into `attributes` — pop it here
+    rather than making every caller remember to strip it before persisting.
+    """
     created = []
     async with tenant_connection(tenant_id) as conn:
-        for attrs in options:
+        for option in options:
+            attrs = dict(option)
+            badge = attrs.pop("badge", None)
             option_id = str(uuid.uuid4())
             await conn.execute(
-                "INSERT INTO research_options (option_id, session_id, tenant_id, category, attributes, attempt_number) "
-                "VALUES ($1, $2, $3, $4, $5, $6)",
+                "INSERT INTO research_options (option_id, session_id, tenant_id, category, attributes, attempt_number, badge) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7)",
                 option_id,
                 session_id,
                 tenant_id,
                 category,
                 attrs,
                 attempt_number,
+                badge,
             )
-            created.append(ResearchOption(option_id, session_id, tenant_id, category, attrs, attempt_number=attempt_number))
+            created.append(
+                ResearchOption(option_id, session_id, tenant_id, category, attrs, badge=badge, attempt_number=attempt_number)
+            )
     return created
 
 

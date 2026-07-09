@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { AirbnbReconnectNudge } from "../components/AirbnbBadges";
 import { BookingProgress } from "../components/BookingProgress";
 import { CategoryProgress } from "../components/CategoryProgress";
 import { ItinerarySummary } from "../components/ItinerarySummary";
@@ -15,17 +16,25 @@ export default function TripPlanner() {
   const navigate = useNavigate();
   const [description, setDescription] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [airbnbStatus, setAirbnbStatus] = useState<{ connected: boolean; cookie_status: string } | null>(null);
 
   const { session, refresh } = useSession(sessionId);
   const events = useTripStream(sessionId);
 
   const calendarConflict = events.find((e) => e.type === "calendar_conflict");
+  const airbnbConflict = events.find((e) => e.type === "airbnb_conflict");
   const bookingSteps = events.filter((e) => e.type === "booking_progress");
   // Most recent manual_fallback per category — a later re-search recovering
   // from a fallback (shouldn't normally happen, but) supersedes the earlier one.
   const fallbackByCategory = Object.fromEntries(
     events.filter((e) => e.type === "manual_fallback").map((e: any) => [e.category, e.best_options])
   );
+
+  useEffect(() => {
+    fetch("/users/me/airbnb-status", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setAirbnbStatus);
+  }, []);
 
   async function startTrip() {
     const res = await fetch("/trips", {
@@ -66,6 +75,10 @@ export default function TripPlanner() {
     refresh();
   }
 
+  async function reconnectAirbnb() {
+    await fetch("/users/me/airbnb-reconnect", { method: "POST", credentials: "include" });
+  }
+
   if (!sessionId) {
     return (
       <div>
@@ -83,6 +96,14 @@ export default function TripPlanner() {
         <div className="calendar-conflict-banner">
           Heads up — you already have something on your calendar during these dates.
         </div>
+      )}
+      {airbnbConflict && (
+        <div className="airbnb-conflict-banner">
+          Heads up — you have an existing Airbnb reservation overlapping these dates.
+        </div>
+      )}
+      {airbnbStatus?.connected && airbnbStatus.cookie_status === "expired" && (
+        <AirbnbReconnectNudge onReconnect={reconnectAirbnb} />
       )}
 
       <CategoryProgress categories={session.categories.map((c: any) => ({ name: c.name, status: c.status }))} />

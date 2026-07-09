@@ -81,6 +81,34 @@ def apply_policy(options: list[dict], category: str, policy: OrganizationTravelP
     ]
 
 
+def rank_and_badge_accommodations(options: list[dict], airbnb_context: dict, destination: str) -> list[dict]:
+    """spec FR-028: wishlist first, past stays at this destination second, new
+    options third — with badges. `airbnb_context` comes from
+    memory.get_airbnb_context; an unconnected/expired account just means both
+    ID sets are empty, so everything ranks as "new" (graceful degradation,
+    FR-029 — no special-casing needed here).
+    """
+    wishlist_ids = {w.get("listing_id") for w in airbnb_context.get("wishlist", [])}
+    past_stay_ids = {
+        s.get("listing_id") for s in airbnb_context.get("past_stays", []) if s.get("destination") == destination
+    }
+
+    def rank(option: dict) -> int:
+        if option.get("id") in wishlist_ids:
+            return 0
+        if option.get("id") in past_stay_ids:
+            return 1
+        return 2
+
+    ranked = sorted(options, key=rank)
+    for option in ranked:
+        if option.get("id") in wishlist_ids:
+            option["badge"] = "wishlisted"
+        elif option.get("id") in past_stay_ids:
+            option["badge"] = "past_stay"
+    return ranked
+
+
 async def _search_with_broaden_retry(category: str, trip_request: dict, notes: str = "") -> list[dict]:
     """spec FR-008a: a zero-result category gets one silent, broadened retry
     before it's ever shown empty — this retry does NOT consume the reject
@@ -93,10 +121,15 @@ async def _search_with_broaden_retry(category: str, trip_request: dict, notes: s
 
 
 @traced("planner.run_research")
-async def run_research(session_id: str, tenant_id: str, user_id: str, trip_request: dict) -> None:
+async def run_research(
+    session_id: str, tenant_id: str, user_id: str, trip_request: dict, airbnb_context: dict | None = None
+) -> None:
     """spec Story 3 (FR-013/FR-014): preferences and destination history are
     read before first-pass research, so results already reflect them without
     the traveler restating anything (wired here per tasks.md T062).
+    `airbnb_context` (spec Story 5) ranks/badges accommodation results —
+    optional so callers that don't have one (e.g. tests) still work,
+    degrading to no ranking at all, same spirit as FR-029.
     """
     from agents.memory import get_preferences, retrieve_context
 
@@ -123,6 +156,8 @@ async def run_research(session_id: str, tenant_id: str, user_id: str, trip_reque
 
     for category, results in (("flight", flight_results), ("accommodation", accommodation_results)):
         compliant = apply_policy(results, category, policy)
+        if category == "accommodation" and airbnb_context:
+            compliant = rank_and_badge_accommodations(compliant, airbnb_context, trip_request.get("destination"))
         created = await add_research_options(tenant_id, session_id, category, compliant, attempt_number=1)
         for option in created:
             await events.publish(

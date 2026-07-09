@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 // a consumer's switch/case is exhaustively checked by TypeScript.
 export type TripStreamEvent =
   | { type: "calendar_conflict"; conflicts: { event_title: string; start: string; end: string }[] }
+  | { type: "airbnb_conflict"; reservations: { listing: unknown; dates: unknown; address: unknown; confirmation_code: string }[] }
   | { type: "research_started"; categories: string[] }
   | { type: "card_ready"; category: string; option: unknown }
   | { type: "category_complete"; category: string; outcome: "selected" | "all_rejected" }
@@ -28,6 +29,7 @@ export function useTripStream(sessionId: string | undefined) {
 
     const eventNames: TripStreamEvent["type"][] = [
       "calendar_conflict",
+      "airbnb_conflict",
       "research_started",
       "card_ready",
       "category_complete",

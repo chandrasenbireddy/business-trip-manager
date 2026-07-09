@@ -1,3 +1,5 @@
+import { AirbnbBadge } from "./AirbnbBadges";
+
 interface Option {
   option_id: string;
   attributes: Record<string, unknown>;
@@ -12,7 +14,7 @@ interface Props {
 export function SwipeCard({ option, onDecide }: Props) {
   return (
     <div className="swipe-card">
-      {option.badge && <span className="badge">{option.badge === "wishlisted" ? "⭐ Saved" : "✓ Stayed here"}</span>}
+      <AirbnbBadge badge={option.badge} />
       <pre>{JSON.stringify(option.attributes, null, 2)}</pre>
       <button onClick={() => onDecide(option.option_id, "rejected")}>Skip</button>
       <button onClick={() => onDecide(option.option_id, "selected")}>Approve</button>
