@@ -189,3 +189,41 @@ async def record_confirmation(tenant_id: str, session_id: str, shown_snapshot: d
             tenant_id,
             shown_snapshot,
         )
+
+
+async def get_approval_events(tenant_id: str, limit: int = 100) -> list[dict]:
+    """Audit trail (spec FR-020) — read-only; there is deliberately no
+    corresponding update/delete function anywhere in this module.
+    """
+    async with tenant_connection(tenant_id) as conn:
+        rows = await conn.fetch(
+            "SELECT event_id, session_id, option_id, decision, shown_snapshot, created_at "
+            "FROM approval_events WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2",
+            tenant_id,
+            limit,
+        )
+    return [dict(r) for r in rows]
+
+
+async def get_cost_usage(tenant_id: str) -> dict:
+    """spec FR-022. Aggregates from cost_events — populated once a story that
+    actually emits cost events lands (tasks.md T086, US6); this endpoint is
+    correct today, it just has nothing to show until then.
+    """
+    async with tenant_connection(tenant_id) as conn:
+        by_user = await conn.fetch(
+            "SELECT user_id, SUM(cost_usd) AS total FROM cost_events WHERE tenant_id = $1 GROUP BY user_id",
+            tenant_id,
+        )
+        by_agent_type = await conn.fetch(
+            "SELECT agent_type, SUM(cost_usd) AS total FROM cost_events WHERE tenant_id = $1 GROUP BY agent_type",
+            tenant_id,
+        )
+        total_row = await conn.fetchrow(
+            "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM cost_events WHERE tenant_id = $1", tenant_id
+        )
+    return {
+        "by_user": {r["user_id"]: float(r["total"]) for r in by_user},
+        "by_agent_type": {r["agent_type"]: float(r["total"]) for r in by_agent_type},
+        "total": float(total_row["total"]),
+    }

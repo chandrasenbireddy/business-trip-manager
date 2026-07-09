@@ -6,11 +6,28 @@ spec FR-010/FR-011/FR-012/FR-016.
 """
 
 from agents.base import traced
+from agents.models.tenant import OrganizationTravelPolicy
 from tools import events, secrets
 
 
 class BookingGateError(Exception):
     """Raised when execute_booking is called outside session_status == 'confirmed'."""
+
+
+def needs_approval(total_cost: float, policy: OrganizationTravelPolicy) -> bool:
+    """spec FR-019: a confirmed itinerary above the tenant's threshold pauses
+    booking and notifies the designated approver — this is the check the
+    confirm route uses to decide whether to call execute_booking at all.
+    """
+    return policy.approval_threshold is not None and total_cost > policy.approval_threshold
+
+
+@traced("booking.notify_approver", tool_name="notify_approver")
+async def notify_approver(session_id: str, approver_email: str | None) -> dict:
+    """Real implementation sends this via the transactional email service —
+    stubbed the same way as send_email pending a live provider (spec FR-019).
+    """
+    return {"status": "ok", "approver": approver_email}
 
 
 @traced("booking.book_flight", tool_name="book_flight")

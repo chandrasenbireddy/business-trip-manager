@@ -18,6 +18,7 @@ from agents.models.session import (
     set_itinerary,
     update_session_status,
 )
+from agents.models.tenant import OrganizationTravelPolicy, get_tenant
 from scrapers.airbnb import search_airbnb
 from scrapers.flights import search_flights
 from tools import events
@@ -61,6 +62,25 @@ async def _search_category(category: str, trip_request: dict, notes: str = "", b
     )
 
 
+def apply_policy(options: list[dict], category: str, policy: OrganizationTravelPolicy) -> list[dict]:
+    """spec FR-018: filter options against the tenant's org policy BEFORE any
+    card_ready event — a non-compliant option must never be persisted or
+    shown, not just hidden client-side.
+    """
+    if category == "flight":
+        return [
+            o
+            for o in options
+            if (policy.max_flight_budget is None or o.get("price", 0) <= policy.max_flight_budget)
+            and (not policy.approved_airlines or o.get("airline") in policy.approved_airlines)
+        ]
+    return [
+        o
+        for o in options
+        if policy.max_hotel_budget_per_night is None or o.get("price", 0) <= policy.max_hotel_budget_per_night
+    ]
+
+
 async def _search_with_broaden_retry(category: str, trip_request: dict, notes: str = "") -> list[dict]:
     """spec FR-008a: a zero-result category gets one silent, broadened retry
     before it's ever shown empty — this retry does NOT consume the reject
@@ -98,8 +118,12 @@ async def run_research(session_id: str, tenant_id: str, user_id: str, trip_reque
         ),
     )
 
+    tenant = await get_tenant(tenant_id)
+    policy = tenant.travel_policy if tenant else OrganizationTravelPolicy()
+
     for category, results in (("flight", flight_results), ("accommodation", accommodation_results)):
-        created = await add_research_options(tenant_id, session_id, category, results, attempt_number=1)
+        compliant = apply_policy(results, category, policy)
+        created = await add_research_options(tenant_id, session_id, category, compliant, attempt_number=1)
         for option in created:
             await events.publish(
                 session_id, "card_ready", {"category": category, "option": option.__dict__}
@@ -127,7 +151,11 @@ async def research_category(tenant_id: str, session_id: str, category: str, reas
     session = await get_session(tenant_id, session_id)
     results = await _search_with_broaden_retry(category, session.trip_request, notes=reason)
 
-    created = await add_research_options(tenant_id, session_id, category, results, attempt_number=next_attempt)
+    tenant = await get_tenant(tenant_id)
+    policy = tenant.travel_policy if tenant else OrganizationTravelPolicy()
+    compliant = apply_policy(results, category, policy)
+
+    created = await add_research_options(tenant_id, session_id, category, compliant, attempt_number=next_attempt)
     for option in created:
         await events.publish(session_id, "card_ready", {"category": category, "option": option.__dict__})
 

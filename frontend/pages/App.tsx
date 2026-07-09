@@ -4,6 +4,9 @@ import Activate from "./Activate";
 import TripPlanner from "./TripPlanner";
 import History from "./History";
 import Preferences from "./Preferences";
+import AdminPolicy from "./AdminPolicy";
+import AdminAudit from "./AdminAudit";
+import AdminCostUsage from "./AdminCostUsage";
 
 export default function App() {
   return (
@@ -14,6 +17,9 @@ export default function App() {
         <Route path="/trips/:sessionId?" element={<TripPlanner />} />
         <Route path="/history" element={<History />} />
         <Route path="/preferences" element={<Preferences />} />
+        <Route path="/admin/policy" element={<AdminPolicy />} />
+        <Route path="/admin/audit" element={<AdminAudit />} />
+        <Route path="/admin/cost-usage" element={<AdminCostUsage />} />
       </Routes>
     </BrowserRouter>
   );

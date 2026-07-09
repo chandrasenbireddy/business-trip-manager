@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from agents import booking, planner
-from agents.models.session import get_options, get_session, list_sessions_for_user, record_confirmation
+from agents.models.session import get_options, get_session, list_sessions_for_user, record_confirmation, update_session_status
+from agents.models.tenant import get_tenant
 from agents.orchestrator import handle_trip_request
 from tools import events
 
@@ -106,7 +107,18 @@ async def confirm_trip(session_id: str, request: Request):
         raise HTTPException(409, "Itinerary is not ready for confirmation")
 
     await record_confirmation(tenant_id, session_id, shown_snapshot=session.itinerary)
-    from agents.models.session import update_session_status
+
+    tenant = await get_tenant(tenant_id)
+    policy = tenant.travel_policy if tenant else None
+
+    if policy and booking.needs_approval(session.total_cost_usd, policy):
+        # spec FR-019: pause here — execute_booking is never called for this
+        # confirm call. A separate, later approval step (out of scope for the
+        # tasks this PR covers) is what would eventually call it.
+        await update_session_status(tenant_id, session_id, "pending_approval")
+        await booking.notify_approver(session_id, policy.approver_email)
+        await events.publish(session_id, "pending_approval", {"approver": policy.approver_email})
+        return {"status": "pending_approval"}
 
     await update_session_status(tenant_id, session_id, "confirmed")
 
