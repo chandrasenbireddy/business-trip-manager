@@ -1,0 +1,20 @@
+# Turing deployment block + H2O-O graph (PRD §7, §8.5)
+# Filled in incrementally as services are built; placeholder until DevFlow submission.
+
+name: business-travel-manager
+version: 0.1.0
+
+services:
+  - name: btm-orchestrator
+    entrypoint: agents.orchestrator:app
+  - name: btm-memory
+    entrypoint: agents.memory:app
+  - name: btm-scraper-flights
+    entrypoint: scrapers.flights:app
+  - name: btm-scraper-airbnb
+    entrypoint: scrapers.airbnb:app
+  - name: btm-api
+    entrypoint: api.main:app
+
+# model routing: see tools/model_router.py and models.yaml (research.md §3)
+# sdk migration path (PRD §8.5): v1 = strands + manual OTel; v2 = h2o_substrate.sdk decorators
