@@ -64,12 +64,13 @@ async def test_search_airbnb_retries_once_then_raises():
 def test_flights_scraper_uses_the_locally_routed_ollama_model():
     # models.yaml routes browser-use (both scrapers) to a local Ollama vision
     # model, not NVIDIA NIM — this is the one role that never leaves the
-    # machine, so it must never pick up an api_key.
+    # machine, so it must never pick up an api_key. host.docker.internal
+    # (not localhost) so scraper containers can reach Ollama on the host.
     from scrapers.flights import _browser_llm
 
     llm = _browser_llm()
     assert llm.model == "gemma4:12b"
-    assert llm.host == "http://localhost:11434"
+    assert llm.host == "http://host.docker.internal:11434"
 
 
 def test_airbnb_scraper_uses_the_locally_routed_ollama_model():
@@ -77,4 +78,4 @@ def test_airbnb_scraper_uses_the_locally_routed_ollama_model():
 
     llm = _browser_llm()
     assert llm.model == "gemma4:12b"
-    assert llm.host == "http://localhost:11434"
+    assert llm.host == "http://host.docker.internal:11434"

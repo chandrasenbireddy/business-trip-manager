@@ -13,7 +13,13 @@
 
 CREATE ROLE btm_app LOGIN PASSWORD :'btm_app_password';  -- set via psql -v btm_app_password=... or Secret Manager in deploy tooling, never hardcoded
 
-GRANT CONNECT ON DATABASE CURRENT_DATABASE() TO btm_app;
+-- `GRANT ... ON DATABASE` needs a plain identifier, not a function call —
+-- `ON DATABASE CURRENT_DATABASE()` is a syntax error (found running this
+-- migration for real inside a fresh Docker container; every prior verification
+-- run missed it because Postgres grants CONNECT to PUBLIC by default, so the
+-- failure never blocked anything functionally). \gexec runs the dynamically
+-- built statement, keeping this migration portable across database names.
+SELECT format('GRANT CONNECT ON DATABASE %I TO btm_app', current_database()) \gexec
 GRANT USAGE ON SCHEMA public TO btm_app;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO btm_app;
 

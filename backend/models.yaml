@@ -21,7 +21,12 @@ providers:
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
   ollama:
-    base_url: http://localhost:11434  # local, no auth
+    # host.docker.internal, not localhost: the scraper containers reach the
+    # Ollama server running on the host machine through Docker's host
+    # gateway (docker-compose.yml's extra_hosts) — "localhost" inside a
+    # container means the container itself, which has no Ollama running.
+    # Back to plain localhost:11434 for non-Docker local dev.
+    base_url: http://host.docker.internal:11434
     api_key_env: null
 
 orchestrator:

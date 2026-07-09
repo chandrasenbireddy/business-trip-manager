@@ -221,5 +221,6 @@ __marimo__/
 node_modules/
 frontend/dist/
 frontend/build/
+*.tsbuildinfo
 *.log
 .DS_Store

@@ -1,0 +1,5 @@
+# core.autocrlf=true on Windows dev machines would otherwise check these out
+# with CRLF, which breaks execution inside a Linux container (bad shebang
+# line, docker-entrypoint.sh's `#!/bin/sh` in particular).
+*.sh text eol=lf
+Dockerfile text eol=lf
