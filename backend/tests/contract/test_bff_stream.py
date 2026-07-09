@@ -22,6 +22,7 @@ RIYADH_DETAILS = {
     "end_date": "2026-11-13",
     "purpose": "conference",
     "budget": 1200,
+    "origin": "Dammam",
     "constraints": [],
 }
 

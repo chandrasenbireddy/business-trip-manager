@@ -4,6 +4,7 @@ interface SessionState {
   status: string;
   categories: { name: string; status: string; options: unknown[] }[];
   itinerary?: unknown;
+  clarifying_question?: string | null;
 }
 
 // Snapshot fetch of a trip session — complements useTripStream's live events

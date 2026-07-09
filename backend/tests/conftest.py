@@ -84,6 +84,13 @@ async def _seed_test_tenant():
             "INSERT INTO users (user_id, tenant_id) VALUES ($1, 'test-tenant') ON CONFLICT (user_id) DO NOTHING",
             user_id,
         )
+    # Same leak as travel_policy above, different table: store_preference
+    # (fix: trip intake flow's home_city) never overwrites, only adds new
+    # versions — a preference one test stores for traveler@example.com
+    # otherwise persists in this real, non-dropped-between-runs Postgres and
+    # gets silently reused by every later test sharing this same seeded user,
+    # even across separate pytest invocations.
+    await conn.execute("DELETE FROM semantic_memories WHERE tenant_id = 'test-tenant'")
     await conn.close()
     yield
 

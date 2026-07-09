@@ -17,6 +17,7 @@ export default function TripPlanner() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const [description, setDescription] = useState("");
+  const [clarifyAnswer, setClarifyAnswer] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [airbnbStatus, setAirbnbStatus] = useState<{ connected: boolean; cookie_status: string } | null>(null);
   const [costSummary, setCostSummary] = useState<{ by_activity: Record<string, number>; total: number } | null>(null);
@@ -61,8 +62,23 @@ export default function TripPlanner() {
       body: JSON.stringify({ description }),
     });
     const body = await res.json();
-    if (body.session_id) navigate(`/trips/${body.session_id}`);
-    else if (body.clarifying_question) setDescription(body.clarifying_question);
+    // A clarifying question with a session_id (e.g. missing origin) still
+    // navigates — the session page shows the question inline. One with no
+    // session_id (destination/dates missing) never got far enough to have
+    // one, so there's nowhere to navigate to yet.
+    if (body.clarifying_question && !body.session_id) setDescription(body.clarifying_question);
+    else if (body.session_id) navigate(`/trips/${body.session_id}`);
+  }
+
+  async function submitClarification() {
+    await fetch(`/trips/${sessionId}/clarify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ answer: clarifyAnswer }),
+    });
+    setClarifyAnswer("");
+    refresh();
   }
 
   async function decide(optionId: string, decision: "selected" | "rejected") {
@@ -121,6 +137,20 @@ export default function TripPlanner() {
       )}
       {airbnbStatus?.connected && airbnbStatus.cookie_status === "expired" && (
         <AirbnbReconnectNudge onReconnect={reconnectAirbnb} />
+      )}
+
+      {session.status === "awaiting_clarification" && (
+        <div className="clarifying-question">
+          <p>{session.clarifying_question}</p>
+          <input
+            value={clarifyAnswer}
+            onChange={(e) => setClarifyAnswer(e.target.value)}
+            placeholder="e.g. Austin, TX"
+          />
+          <button onClick={submitClarification} disabled={!clarifyAnswer.trim()}>
+            Send
+          </button>
+        </div>
       )}
 
       <CategoryProgress categories={session.categories.map((c: any) => ({ name: c.name, status: c.status }))} />

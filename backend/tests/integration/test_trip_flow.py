@@ -24,6 +24,7 @@ def test_full_trip_flow_riyadh_kafd_example(client, auth_cookies):
                     "end_date": "2026-07-17",
                     "purpose": "HUMAIN kickoff",
                     "budget": 1500,
+                    "origin": "Dammam",
                     "constraints": ["near KAFD"],
                 }
             ),

@@ -26,6 +26,7 @@ def test_research_card_load_and_booking_complete_within_nfr_01_budgets(client, a
                     "end_date": "2026-07-17",
                     "purpose": "kickoff",
                     "budget": 1500,
+                    "origin": "Dammam",
                     "constraints": ["near KAFD"],
                 }
             ),

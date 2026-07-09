@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from tools.db_context import tenant_connection
 
-PREFERENCE_TYPES = ("seat", "hotel_proximity", "dietary", "preferred_airline", "budget_pattern")
+PREFERENCE_TYPES = ("seat", "hotel_proximity", "dietary", "preferred_airline", "budget_pattern", "home_city")
 
 
 @dataclass

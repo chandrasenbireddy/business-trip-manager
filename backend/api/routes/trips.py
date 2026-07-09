@@ -15,7 +15,7 @@ from agents.models.session import (
     update_session_status,
 )
 from agents.models.tenant import get_tenant
-from agents.orchestrator import handle_trip_request
+from agents.orchestrator import MISSING_ORIGIN_QUESTION, handle_clarification_answer, handle_trip_request
 from tools import events
 from tools.report import generate_report_html, get_or_create_report
 
@@ -38,6 +38,23 @@ async def create_trip(request: Request, body: dict):
     if "clarifying_question" in result:
         return {"session_id": None, "status": "clarifying_question", **result}
     return result
+
+
+@router.post("/{session_id}/clarify")
+async def clarify_trip(session_id: str, body: dict, request: Request):
+    """Answers handle_trip_request's missing-origin clarifying question
+    (fix: trip intake flow) — the only clarifying question tied to a real
+    session today, since the destination/dates one (spec FR-002) fires
+    before any session exists to resume.
+    """
+    tenant_id = request.state.tenant_id
+    session = await get_session(tenant_id, session_id)
+    if session is None:
+        raise HTTPException(404, "Session not found")
+    if session.status != "awaiting_clarification":
+        raise HTTPException(409, "Session is not awaiting a clarifying answer")
+
+    return await handle_clarification_answer(tenant_id, session_id, body["answer"])
 
 
 @router.get("/{session_id}")
@@ -67,6 +84,10 @@ async def get_trip(session_id: str, request: Request):
         "status": session.status,
         "categories": categories,
         "itinerary": session.itinerary,
+        # Re-derived from status, not stored — a page refresh while awaiting
+        # the origin answer still needs the question text to show (the
+        # original POST /trips response isn't available after a reload).
+        "clarifying_question": MISSING_ORIGIN_QUESTION if session.status == "awaiting_clarification" else None,
     }
 
 

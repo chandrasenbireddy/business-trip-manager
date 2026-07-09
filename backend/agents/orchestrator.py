@@ -13,9 +13,11 @@ from openai import AsyncOpenAI
 
 from agents.base import traced
 from agents.models.cost import record_cost_event
-from agents.models.session import create_session
+from agents.models.session import create_session, get_session, update_session_status, update_trip_request
 from tools import events
 from tools.model_router import call_with_fallback, client_config, primary_model
+
+MISSING_ORIGIN_QUESTION = "Where will you be flying from?"
 
 REQUIRED_FIELDS = ("destination", "start_date", "end_date")
 
@@ -92,17 +94,21 @@ def _missing_required_field(details: dict) -> str | None:
     return None
 
 
-@traced("orchestrator.handle_trip_request")
-async def handle_trip_request(description: str, user_id: str, tenant_id: str) -> dict:
-    details = await _extract_trip_details(description)
+async def _get_home_city_preference(tenant_id: str, user_id: str) -> str | None:
+    from agents.memory import get_preferences
 
-    missing = _missing_required_field(details)
-    if missing:
-        # At most one clarifying question (spec FR-002) — never a multi-question form.
-        return {"clarifying_question": f"What {missing.replace('_', ' ')} did you have in mind?"}
+    preferences = (await get_preferences(tenant_id, user_id))["preferences"]
+    for pref in preferences:
+        if pref["type"] == "home_city":
+            return pref["value"].get("city")
+    return None
 
-    session = await create_session(tenant_id, user_id, trip_request=details)
 
+async def _dispatch_research(session, tenant_id: str, user_id: str, details: dict) -> None:
+    """Everything that happens once destination/dates/origin are all known —
+    shared between the normal path (origin present or a home_city preference
+    covered it) and handle_clarification_answer (origin was just supplied).
+    """
     # spec FR-021/FR-023: attribute the NL-extraction call's cost to this
     # session. tokens/cost are 0 until a real model call replaces
     # _extract_trip_details's stub — the recording pipeline itself is real.
@@ -114,9 +120,7 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
         model_id=primary_model("orchestrator"),
     )
 
-    from agents.memory import check_date_conflict, get_airbnb_context, store_turn
-
-    await store_turn(tenant_id, session.session_id, user_id, role="traveler", content=description)
+    from agents.memory import check_date_conflict, get_airbnb_context
 
     conflicts = await check_calendar_availability(
         user_id,
@@ -137,6 +141,60 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
     from agents.planner import run_research
 
     await run_research(session.session_id, tenant_id, user_id, details, airbnb_context)
+
+
+@traced("orchestrator.handle_trip_request")
+async def handle_trip_request(description: str, user_id: str, tenant_id: str) -> dict:
+    details = await _extract_trip_details(description)
+
+    missing = _missing_required_field(details)
+    if missing:
+        # At most one clarifying question (spec FR-002) — never a multi-question form.
+        return {"clarifying_question": f"What {missing.replace('_', ' ')} did you have in mind?"}
+
+    if not details.get("origin"):
+        details["origin"] = await _get_home_city_preference(tenant_id, user_id)
+
+    session = await create_session(tenant_id, user_id, trip_request=details)
+
+    from agents.memory import store_turn
+
+    await store_turn(tenant_id, session.session_id, user_id, role="traveler", content=description)
+
+    if not details["origin"]:
+        # Fix: trip intake flow — origin wasn't stated and no home_city
+        # preference covers it. Pause here (session already exists, so the
+        # traveler's opening message is recorded either way) rather than
+        # guess a departure city; POST /trips/{id}/clarify resumes exactly
+        # where this leaves off once answered.
+        await update_session_status(tenant_id, session.session_id, "awaiting_clarification")
+        return {"clarifying_question": MISSING_ORIGIN_QUESTION, "session_id": session.session_id}
+
+    await _dispatch_research(session, tenant_id, user_id, details)
+
+    return {"session_id": session.session_id, "status": "in_progress"}
+
+
+@traced("orchestrator.handle_clarification_answer")
+async def handle_clarification_answer(tenant_id: str, session_id: str, answer: str) -> dict:
+    """Resumes a session paused by handle_trip_request's missing-origin
+    clarifying question. Stores the answer as a durable home_city
+    preference (spec: fix trip intake flow) so this traveler is never asked
+    again, then proceeds exactly as if origin had been in the original
+    request.
+    """
+    session = await get_session(tenant_id, session_id)
+
+    from agents.memory import store_preference
+
+    await store_preference(tenant_id, session.user_id, "home_city", {"city": answer})
+
+    details = dict(session.trip_request or {})
+    details["origin"] = answer
+    await update_trip_request(tenant_id, session_id, details)
+    await update_session_status(tenant_id, session_id, "in_progress")
+
+    await _dispatch_research(session, tenant_id, session.user_id, details)
 
     return {"session_id": session.session_id, "status": "in_progress"}
 

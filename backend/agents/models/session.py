@@ -87,6 +87,15 @@ async def update_session_status(tenant_id: str, session_id: str, status: str) ->
         await conn.execute("UPDATE sessions SET status = $1 WHERE session_id = $2", status, session_id)
 
 
+async def update_trip_request(tenant_id: str, session_id: str, trip_request: dict) -> None:
+    """Fix: trip intake flow — a session created while origin is still
+    unknown (awaiting_clarification) needs its stored trip_request updated
+    once the traveler answers, so build_itinerary/history reads see it.
+    """
+    async with tenant_connection(tenant_id) as conn:
+        await conn.execute("UPDATE sessions SET trip_request = $1 WHERE session_id = $2", trip_request, session_id)
+
+
 async def set_itinerary(tenant_id: str, session_id: str, itinerary: dict, total_cost_usd: float) -> None:
     async with tenant_connection(tenant_id) as conn:
         await conn.execute(

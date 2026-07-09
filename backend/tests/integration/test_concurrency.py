@@ -73,6 +73,7 @@ async def test_tens_of_concurrent_tenants_run_trip_sessions_without_cross_contam
                         "end_date": "2026-07-17",
                         "purpose": "load test",
                         "budget": 1000,
+                        "origin": "Load Test City",
                         "constraints": [],
                     }
                 ),

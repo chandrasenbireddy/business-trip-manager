@@ -73,6 +73,7 @@ def test_dev_bypass_can_create_a_real_trip_with_no_waitlist_or_oauth_at_all(clie
                     "end_date": "2026-07-17",
                     "purpose": "dev testing",
                     "budget": 1000,
+                    "origin": "Dev City",
                 }
             ),
         ),
