@@ -27,6 +27,16 @@ services:
 region: me-central2  # GCP KSA region
 project: humain-494919
 
+# 032-shared-agent-memory: opts this agent into the platform proxy's memory
+# hooks (humain-marketplace/backend/routes/h2oo_proxy.py) — manifest-only
+# change, no Python file under backend/agents/ is touched. Additive
+# alongside this repo's own existing memory.* nodes above (preferences,
+# trip-history, session summarization) — that subsystem is unrelated and
+# unchanged; this is the separate, platform-level cross-agent memory layer.
+memory:
+  enabled: true
+  retrieval_query: "user travel plans and preferences"
+
 # H2O-O graph (PRD §8.5): every node below is a real @traced function
 # (tools/telemetry.py) — node names match traced()'s node_name arg exactly,
 # so this graph and the OTel node.name span attribute never drift apart.
