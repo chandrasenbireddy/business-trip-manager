@@ -53,6 +53,22 @@ async def tenant_connection(tenant_id: str):
 
 
 @asynccontextmanager
+async def tenant_connection_or(conn, tenant_id: str):
+    """Reuse `conn` when the caller already holds a tenant-scoped connection,
+    otherwise open a new one.
+
+    Lets a caller span several writes in one transaction — a row and the rows
+    that carry an FK to it must commit together, or a later failure leaves the
+    first row orphaned.
+    """
+    if conn is not None:
+        yield conn
+    else:
+        async with tenant_connection(tenant_id) as owned_conn:
+            yield owned_conn
+
+
+@asynccontextmanager
 async def untenanted_connection():
     """For the handful of tables that genuinely have no tenant yet — waitlist
     rows exist before a tenant is ever created (spec FR-031/FR-032). Callers

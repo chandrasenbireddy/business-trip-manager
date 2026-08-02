@@ -7,7 +7,7 @@ editing one inserts a new row and sets `superseded_by` on the prior version.
 import uuid
 from dataclasses import dataclass
 
-from tools.db_context import tenant_connection
+from tools.db_context import tenant_connection, tenant_connection_or
 
 PREFERENCE_TYPES = ("seat", "hotel_proximity", "dietary", "preferred_airline", "budget_pattern", "home_city")
 
@@ -40,9 +40,10 @@ async def store_turn(
     role: str,
     content: str,
     embedding: list[float] | None = None,
+    conn=None,
 ) -> ConversationTurn:
     turn_id = str(uuid.uuid4())
-    async with tenant_connection(tenant_id) as conn:
+    async with tenant_connection_or(conn, tenant_id) as conn:
         await conn.execute(
             "INSERT INTO conversation_turns (turn_id, session_id, tenant_id, user_id, role, content, embedding) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7)",

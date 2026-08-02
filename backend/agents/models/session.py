@@ -8,7 +8,7 @@ RLS scoping.
 import uuid
 from dataclasses import dataclass
 
-from tools.db_context import tenant_connection
+from tools.db_context import tenant_connection, tenant_connection_or
 
 
 @dataclass
@@ -34,9 +34,9 @@ class ResearchOption:
     attempt_number: int = 1
 
 
-async def create_session(tenant_id: str, user_id: str, trip_request: dict) -> TripSession:
+async def create_session(tenant_id: str, user_id: str, trip_request: dict, conn=None) -> TripSession:
     session_id = str(uuid.uuid4())
-    async with tenant_connection(tenant_id) as conn:
+    async with tenant_connection_or(conn, tenant_id) as conn:
         await conn.execute(
             "INSERT INTO sessions (session_id, user_id, tenant_id, status, trip_request) VALUES ($1, $2, $3, 'in_progress', $4)",
             session_id,

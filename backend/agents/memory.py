@@ -58,11 +58,17 @@ def check_date_conflict(upcoming_reservations: list[dict], start_date: str, end_
 
 
 @traced("memory.store_turn", tool_name="store_turn")
-async def store_turn(tenant_id: str, session_id: str, user_id: str, role: str, content: str) -> dict:
+async def store_turn(tenant_id: str, session_id: str, user_id: str, role: str, content: str, conn=None) -> dict:
+    """`conn` lets a caller keep this turn in the same transaction as the
+    session row it references — cost_events carries an FK to sessions, so a
+    separate connection could not see an uncommitted session.
+    """
     embedding = await embed(content)
-    turn = await _store_turn(tenant_id, session_id, user_id, role, content, embedding)
+    turn = await _store_turn(tenant_id, session_id, user_id, role, content, embedding, conn=conn)
     # spec FR-021/FR-023: memory's own line in the session cost summary.
-    await record_cost_event(tenant_id, session_id, user_id, agent_type="memory", model_id=primary_model("memory"))
+    await record_cost_event(
+        tenant_id, session_id, user_id, agent_type="memory", model_id=primary_model("memory"), conn=conn
+    )
     return {"turn_id": turn.turn_id}
 
 

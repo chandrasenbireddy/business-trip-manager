@@ -17,6 +17,7 @@ from agents.base import traced
 from agents.models.cost import record_cost_event
 from agents.models.session import create_session, get_session, update_session_status, update_trip_request
 from tools import events
+from tools.db_context import tenant_connection
 from tools.model_router import call_with_fallback, client_config, primary_model
 
 MISSING_ORIGIN_QUESTION = "Where will you be flying from?"
@@ -182,11 +183,13 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
     if not details.get("origin"):
         details["origin"] = await _get_home_city_preference(tenant_id, user_id)
 
-    session = await create_session(tenant_id, user_id, trip_request=details)
-
     from agents.memory import store_turn
 
-    await store_turn(tenant_id, session.session_id, user_id, role="traveler", content=description)
+    # One transaction: a session whose opening turn failed to store would be
+    # left stuck in_progress with no turn and no research ever dispatched.
+    async with tenant_connection(tenant_id) as conn:
+        session = await create_session(tenant_id, user_id, trip_request=details, conn=conn)
+        await store_turn(tenant_id, session.session_id, user_id, role="traveler", content=description, conn=conn)
 
     if not details["origin"]:
         # Fix: trip intake flow — origin wasn't stated and no home_city

@@ -7,7 +7,7 @@ session cost-summary (tools/cost.py) aggregates them GROUP BY agent_type.
 import uuid
 from dataclasses import dataclass
 
-from tools.db_context import tenant_connection
+from tools.db_context import tenant_connection, tenant_connection_or
 
 
 @dataclass
@@ -32,9 +32,10 @@ async def record_cost_event(
     tokens_in: int = 0,
     tokens_out: int = 0,
     cost_usd: float = 0.0,
+    conn=None,
 ) -> CostEvent:
     event_id = str(uuid.uuid4())
-    async with tenant_connection(tenant_id) as conn:
+    async with tenant_connection_or(conn, tenant_id) as conn:
         await conn.execute(
             "INSERT INTO cost_events (event_id, session_id, tenant_id, user_id, agent_type, model_id, tokens_in, tokens_out, cost_usd) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",

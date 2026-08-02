@@ -5,11 +5,19 @@ tied to a real session — never guess, never ask if we already know.
 """
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
 from agents.orchestrator import MISSING_ORIGIN_QUESTION, _run_research_background, handle_trip_request
+
+
+def _fake_tenant_connection():
+    """Stands in for the session+turn transaction, which needs a live pool."""
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=Mock())
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return Mock(return_value=cm)
 
 _BASE_DETAILS = {
     "destination": "Riyadh",
@@ -29,6 +37,7 @@ async def test_origin_present_in_description_is_used_directly():
             "agents.orchestrator._extract_trip_details",
             AsyncMock(return_value={**_BASE_DETAILS, "origin": "Austin, TX"}),
         ),
+        patch("agents.orchestrator.tenant_connection", _fake_tenant_connection()),
         patch("agents.orchestrator.create_session", AsyncMock(return_value=fake_session)),
         patch("agents.memory.store_turn", AsyncMock()),
         patch("agents.memory.get_preferences", AsyncMock()) as mock_get_preferences,
@@ -47,6 +56,7 @@ async def test_origin_absent_uses_stored_home_city_silently():
     fake_session = SimpleNamespace(session_id="s1")
     with (
         patch("agents.orchestrator._extract_trip_details", AsyncMock(return_value={**_BASE_DETAILS, "origin": None})),
+        patch("agents.orchestrator.tenant_connection", _fake_tenant_connection()),
         patch("agents.orchestrator.create_session", AsyncMock(return_value=fake_session)),
         patch("agents.memory.store_turn", AsyncMock()),
         patch(
@@ -68,6 +78,7 @@ async def test_origin_absent_and_no_home_city_returns_clarifying_question():
     fake_session = SimpleNamespace(session_id="s1")
     with (
         patch("agents.orchestrator._extract_trip_details", AsyncMock(return_value={**_BASE_DETAILS, "origin": None})),
+        patch("agents.orchestrator.tenant_connection", _fake_tenant_connection()),
         patch("agents.orchestrator.create_session", AsyncMock(return_value=fake_session)),
         patch("agents.memory.store_turn", AsyncMock()),
         patch("agents.memory.get_preferences", AsyncMock(return_value={"preferences": []})),
