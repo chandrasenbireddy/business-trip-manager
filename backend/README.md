@@ -30,11 +30,9 @@ real deployment under concurrent tenant load should override both.
 ### Model routing
 
 `models.yaml` + `tools/model_router.py` — NVIDIA NIM is the primary provider
-for orchestrator/planner/booking/memory (`NVIDIA_API_KEY`); Groq is
-orchestrator's only fallback today, for when NIM's free tier hits its 40
-req/min cap (`GROQ_API_KEY`). The flights/Airbnb scrapers (browser-use) route
-to a local Ollama vision model (`gemma4:12b`) instead — no API key, but
-`ollama serve` with that model pulled must be running locally. Swapping any
+for every role (`NVIDIA_API_KEY`). Orchestrator and research/scraper calls
+explicitly retry with Groq on NIM timeout, rate-limit, or other provider
+failure (`GROQ_API_KEY`); they never fall back to a local model. Swapping any
 role's model/provider is a `models.yaml` edit, never a code change.
 
 ## Local development
@@ -63,7 +61,7 @@ collection time specifically so a local dev `.env` can't silently change
 what the test suite authenticates as; if you add another env var here that
 tests should never inherit from a real `.env`, clear it there too.
 
-Run every migration in order: `0001_initial.sql` … `0006_shareable_reports.sql`.
+Run every migration in order: `0001_initial.sql` … `0008_research_failed_status.sql`.
 `0003_app_role.sql` creates the `btm_app` role (set its password via
 `psql -v btm_app_password=...`, never hardcode it) and grants it privileges
 on every table that exists *at that point* — any later migration that adds a

@@ -7,12 +7,13 @@ mocked the primary call succeeding. Written during Polish (T108) after a real
 coverage run showed this file at 55%.
 """
 
+import logging
 import os
 from unittest.mock import AsyncMock
 
 import pytest
 
-from tools.model_router import call_with_fallback, client_config, fallback_model, primary_model
+from tools.model_router import ModelRateLimitError, call_with_fallback, client_config, fallback_model, primary_model
 
 
 def test_primary_and_fallback_model_come_from_models_yaml():
@@ -20,10 +21,7 @@ def test_primary_and_fallback_model_come_from_models_yaml():
 
 
 def test_roles_with_no_configured_fallback_return_none():
-    # Only orchestrator has a real fallback today (models.yaml header comment)
-    # — call_with_fallback must degrade to "raise the original error" for
-    # every other role, not crash trying to invoke a None model.
-    assert fallback_model("planner") is None
+    assert fallback_model("booking") is None
 
 
 @pytest.mark.asyncio
@@ -46,6 +44,23 @@ async def test_call_with_fallback_retries_fallback_on_primary_failure():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [
+        (TimeoutError(), "timeout"),
+        (ModelRateLimitError(), "rate-limit"),
+        (ValueError(), "error"),
+    ],
+)
+async def test_call_with_fallback_logs_reason_and_serving_provider(failure, reason, caplog):
+    invoke = AsyncMock(side_effect=[failure, "ok from fallback"])
+    with caplog.at_level(logging.INFO, logger="tools.model_router"):
+        await call_with_fallback("orchestrator", invoke)
+    assert f"reason={reason}" in caplog.text
+    assert "provider=groq" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_call_with_fallback_propagates_if_fallback_also_fails():
     invoke = AsyncMock(side_effect=[Exception("primary down"), Exception("fallback down too")])
     with pytest.raises(Exception, match="fallback down too"):
@@ -56,7 +71,7 @@ async def test_call_with_fallback_propagates_if_fallback_also_fails():
 async def test_call_with_fallback_raises_original_error_when_role_has_no_fallback():
     invoke = AsyncMock(side_effect=ValueError("no fallback for planner"))
     with pytest.raises(ValueError, match="no fallback for planner"):
-        await call_with_fallback("planner", invoke)
+        await call_with_fallback("booking", invoke)
     invoke.assert_awaited_once()
 
 
@@ -78,12 +93,14 @@ def test_client_config_resolves_groq_fallback_for_orchestrator():
     assert cfg["base_url"] == "https://api.groq.com/openai/v1"
 
 
-def test_client_config_ollama_provider_has_no_api_key():
+def test_scraper_routes_nvidia_primary_and_groq_fallback():
     cfg = client_config("scraper_flights")
-    assert cfg["provider"] == "ollama"
-    assert cfg["api_key"] == ""
+    fallback = client_config("scraper_flights", which="fallback")
+    assert cfg["provider"] == "nvidia"
+    assert cfg["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert fallback["provider"] == "groq"
 
 
 def test_client_config_raises_for_missing_fallback():
     with pytest.raises(KeyError):
-        client_config("planner", which="fallback")
+        client_config("booking", which="fallback")

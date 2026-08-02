@@ -61,21 +61,23 @@ async def test_search_airbnb_retries_once_then_raises():
     assert mock_search.await_count == 2
 
 
-def test_flights_scraper_uses_the_locally_routed_ollama_model():
-    # models.yaml routes browser-use (both scrapers) to a local Ollama vision
-    # model, not NVIDIA NIM — this is the one role that never leaves the
-    # machine, so it must never pick up an api_key. host.docker.internal
-    # (not localhost) so scraper containers can reach Ollama on the host.
+def test_flights_scraper_uses_nim_with_groq_fallback():
     from scrapers.flights import _browser_llm
 
     llm = _browser_llm()
-    assert llm.model == "gemma4:12b"
-    assert llm.host == "http://host.docker.internal:11434"
+    fallback = _browser_llm("fallback")
+    assert llm.model == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert str(llm.base_url).rstrip("/") == "https://integrate.api.nvidia.com/v1"
+    assert fallback.model == "llama-3.3-70b-versatile"
+    assert str(fallback.base_url).rstrip("/") == "https://api.groq.com/openai/v1"
 
 
-def test_airbnb_scraper_uses_the_locally_routed_ollama_model():
+def test_airbnb_scraper_uses_nim_with_groq_fallback():
     from scrapers.airbnb import _browser_llm
 
     llm = _browser_llm()
-    assert llm.model == "gemma4:12b"
-    assert llm.host == "http://host.docker.internal:11434"
+    fallback = _browser_llm("fallback")
+    assert llm.model == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert str(llm.base_url).rstrip("/") == "https://integrate.api.nvidia.com/v1"
+    assert fallback.model == "llama-3.3-70b-versatile"
+    assert str(fallback.base_url).rstrip("/") == "https://api.groq.com/openai/v1"

@@ -6,7 +6,9 @@ FR-015: read-only calendar-availability check before research begins
 (added during /speckit-analyze, finding C1).
 """
 
+import asyncio
 import json
+import logging
 from datetime import date
 
 from openai import AsyncOpenAI
@@ -18,6 +20,8 @@ from tools import events
 from tools.model_router import call_with_fallback, client_config, primary_model
 
 MISSING_ORIGIN_QUESTION = "Where will you be flying from?"
+logger = logging.getLogger(__name__)
+_research_tasks: set[asyncio.Task] = set()
 
 REQUIRED_FIELDS = ("destination", "start_date", "end_date")
 
@@ -143,6 +147,29 @@ async def _dispatch_research(session, tenant_id: str, user_id: str, details: dic
     await run_research(session.session_id, tenant_id, user_id, details, airbnb_context)
 
 
+async def _run_research_background(session, tenant_id: str, user_id: str, details: dict) -> None:
+    try:
+        await _dispatch_research(session, tenant_id, user_id, details)
+    except Exception as exc:  # noqa: BLE001 — the session must record every research failure
+        logger.error(
+            "background research failed session_id=%s error_type=%s",
+            session.session_id,
+            type(exc).__name__,
+        )
+        await update_session_status(tenant_id, session.session_id, "research_failed")
+        await events.publish(
+            session.session_id,
+            "research_failed",
+            {"status": "research_failed", "error_type": type(exc).__name__},
+        )
+
+
+def _schedule_research(session, tenant_id: str, user_id: str, details: dict) -> None:
+    task = asyncio.create_task(_run_research_background(session, tenant_id, user_id, details))
+    _research_tasks.add(task)
+    task.add_done_callback(_research_tasks.discard)
+
+
 @traced("orchestrator.handle_trip_request")
 async def handle_trip_request(description: str, user_id: str, tenant_id: str) -> dict:
     details = await _extract_trip_details(description)
@@ -170,7 +197,7 @@ async def handle_trip_request(description: str, user_id: str, tenant_id: str) ->
         await update_session_status(tenant_id, session.session_id, "awaiting_clarification")
         return {"clarifying_question": MISSING_ORIGIN_QUESTION, "session_id": session.session_id}
 
-    await _dispatch_research(session, tenant_id, user_id, details)
+    _schedule_research(session, tenant_id, user_id, details)
 
     return {"session_id": session.session_id, "status": "in_progress"}
 
@@ -194,7 +221,7 @@ async def handle_clarification_answer(tenant_id: str, session_id: str, answer: s
     await update_trip_request(tenant_id, session_id, details)
     await update_session_status(tenant_id, session_id, "in_progress")
 
-    await _dispatch_research(session, tenant_id, session.user_id, details)
+    _schedule_research(session, tenant_id, session.user_id, details)
 
     return {"session_id": session.session_id, "status": "in_progress"}
 

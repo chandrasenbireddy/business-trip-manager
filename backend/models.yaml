@@ -8,10 +8,8 @@
 # the process environment/.env instead of GCP Secret Manager for this
 # platform-level model credential).
 #
-# `fallback` is optional per role — only orchestrator has a real one today
-# (Groq, since NVIDIA NIM's free tier caps at 40 req/min). Other roles have
-# no fallback because tools/model_router.call_with_fallback isn't wired up
-# for them yet; add one here the day that changes.
+# `fallback` is optional per role. Research calls use Groq when NVIDIA NIM
+# times out, is rate-limited, or fails.
 
 providers:
   nvidia:
@@ -20,14 +18,6 @@ providers:
   groq:
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
-  ollama:
-    # host.docker.internal, not localhost: the scraper containers reach the
-    # Ollama server running on the host machine through Docker's host
-    # gateway (docker-compose.yml's extra_hosts) — "localhost" inside a
-    # container means the container itself, which has no Ollama running.
-    # Back to plain localhost:11434 for non-Docker local dev.
-    base_url: http://host.docker.internal:11434
-    api_key_env: null
 
 # Every NVIDIA `model` value below is the FULL catalog id (including the
 # creator-org prefix — nvidia/, minimaxai/, deepseek-ai/, z-ai/) exactly as
@@ -47,7 +37,8 @@ orchestrator:
   fallback: {provider: groq, model: "llama-3.3-70b-versatile"}
 
 planner:
-  primary: {provider: nvidia, model: "minimaxai/minimax-m3"}
+  primary: {provider: nvidia, model: "nvidia/nemotron-3-ultra-550b-a55b"}
+  fallback: {provider: groq, model: "llama-3.3-70b-versatile"}
 
 booking:
   primary: {provider: nvidia, model: "deepseek-ai/deepseek-v4-flash"}
@@ -56,7 +47,9 @@ memory:
   primary: {provider: nvidia, model: "z-ai/glm-5.2"}
 
 scraper_flights:
-  primary: {provider: ollama, model: "gemma4:12b"}
+  primary: {provider: nvidia, model: "nvidia/nemotron-3-ultra-550b-a55b"}
+  fallback: {provider: groq, model: "llama-3.3-70b-versatile"}
 
 scraper_airbnb:
-  primary: {provider: ollama, model: "gemma4:12b"}
+  primary: {provider: nvidia, model: "nvidia/nemotron-3-ultra-550b-a55b"}
+  fallback: {provider: groq, model: "llama-3.3-70b-versatile"}

@@ -36,11 +36,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      # Lets the scraper code (agents.orchestrator -> planner -> scrapers,
-      # all in-process in this monolith) reach Ollama running on the host
-      # machine at host.docker.internal:11434 (models.yaml).
-      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
 

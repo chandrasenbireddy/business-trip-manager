@@ -48,8 +48,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     networks:
@@ -75,13 +73,9 @@ services:
     networks: [btm-network]
 
   # Placeholder — same story, for scrapers/flights.py + scrapers/airbnb.py.
-  # Also the one service that would need host.docker.internal wired in for
-  # models.yaml's Ollama routing, once it's real.
   btm-scraper:
     build: ./backend
     command: ["sh", "-c", "echo 'btm-scraper: placeholder, no standalone ASGI app yet — scrapers still run in-process inside btm-api' && sleep infinity"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks: [btm-network]
 
   btm-frontend:
