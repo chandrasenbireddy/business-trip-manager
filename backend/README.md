@@ -61,7 +61,7 @@ collection time specifically so a local dev `.env` can't silently change
 what the test suite authenticates as; if you add another env var here that
 tests should never inherit from a real `.env`, clear it there too.
 
-Run every migration in order: `0001_initial.sql` … `0008_research_failed_status.sql`.
+Run every migration in order: `0001_initial.sql` … `0009_embedding_dim_1024.sql`.
 `0003_app_role.sql` creates the `btm_app` role (set its password via
 `psql -v btm_app_password=...`, never hardcode it) and grants it privileges
 on every table that exists *at that point* — any later migration that adds a

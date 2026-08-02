@@ -52,7 +52,7 @@ async def store_turn(
             user_id,
             role,
             content,
-            None,  # ponytail: embedding written once a provider is wired up (tools/embeddings.py)
+            embedding,
         )
     return ConversationTurn(turn_id, session_id, tenant_id, user_id, role, content)
 

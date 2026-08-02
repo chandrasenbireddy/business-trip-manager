@@ -61,5 +61,5 @@ def test_full_trip_flow_riyadh_kafd_example(client, auth_cookies):
         assert confirm_res.json()["status"] == "booking"
 
         final_state = client.get(f"/trips/{session_id}", cookies=auth_cookies).json()
-        assert final_state["status"] == "confirmed"
+        assert final_state["status"] == "closed"
         assert "itinerary" in final_state

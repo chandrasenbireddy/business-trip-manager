@@ -84,7 +84,14 @@ async def list_sessions_for_user(tenant_id: str, user_id: str, limit: int = 20) 
 
 async def update_session_status(tenant_id: str, session_id: str, status: str) -> None:
     async with tenant_connection(tenant_id) as conn:
-        await conn.execute("UPDATE sessions SET status = $1 WHERE session_id = $2", status, session_id)
+        if status == "closed":
+            await conn.execute(
+                "UPDATE sessions SET status = $1, closed_at = now() WHERE session_id = $2",
+                status,
+                session_id,
+            )
+        else:
+            await conn.execute("UPDATE sessions SET status = $1 WHERE session_id = $2", status, session_id)
 
 
 async def update_trip_request(tenant_id: str, session_id: str, trip_request: dict) -> None:

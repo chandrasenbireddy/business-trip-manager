@@ -154,6 +154,9 @@ async def confirm_trip(session_id: str, request: Request):
         tenant_id=tenant_id,
         user_id=session.user_id,
     )
+    # Episodic retrieval keys off closed/confirmed history; set closed_at so
+    # destination history is durable after the booking lifecycle completes.
+    await update_session_status(tenant_id, session_id, "closed")
     return {"status": result["status"]}
 
 

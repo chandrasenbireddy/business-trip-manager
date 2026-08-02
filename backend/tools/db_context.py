@@ -12,14 +12,16 @@ import os
 from contextlib import asynccontextmanager
 
 import asyncpg
+from pgvector.asyncpg import register_vector
 
 _pool: asyncpg.Pool | None = None
 
 
-async def _register_jsonb_codec(conn: asyncpg.Connection) -> None:
+async def _register_codecs(conn: asyncpg.Connection) -> None:
     # asyncpg has no built-in dict<->jsonb marshalling — every connection in
     # the pool needs this or `dict` params to jsonb columns raise DataError.
     await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+    await register_vector(conn)
 
 
 async def init_pool(dsn: str) -> None:
@@ -32,7 +34,7 @@ async def init_pool(dsn: str) -> None:
     # of traffic.
     min_size = int(os.environ.get("BTM_DB_POOL_MIN", "1"))
     max_size = int(os.environ.get("BTM_DB_POOL_MAX", "3"))
-    _pool = await asyncpg.create_pool(dsn, init=_register_jsonb_codec, min_size=min_size, max_size=max_size)
+    _pool = await asyncpg.create_pool(dsn, init=_register_codecs, min_size=min_size, max_size=max_size)
 
 
 @asynccontextmanager
