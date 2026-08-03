@@ -1,0 +1,50 @@
+# Phase 1: everything in one compose file, backend as the single monolithic
+# FastAPI app (api.main:app) it actually is today. See
+# docker-compose.microservices.yml for the Phase 2 split — that one needs a
+# real code-level service-boundary refactor first, not just a compose file.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-btm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - btm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-btm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-btm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # BTM_APP_DB_PASSWORD must come from ./backend/.env (env_file above) —
+      # it's the password docker-entrypoint.sh creates the btm_app role
+      # with, which must match the password embedded in BTM_DATABASE_URL
+      # (also from .env). No default here on purpose: a wrong-but-present
+      # default would silently create a role BTM_DATABASE_URL can't log
+      # into, which fails much less obviously than a missing-var error.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  btm_pgdata:

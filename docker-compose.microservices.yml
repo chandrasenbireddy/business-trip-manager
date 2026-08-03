@@ -1,0 +1,94 @@
+# Phase 2 — SCAFFOLD ONLY, not a functional service split.
+#
+# orchestrator/planner/booking/memory and the scrapers are plain Python
+# functions called in-process by the one FastAPI app in api.main:app — there
+# is no separate ASGI app for any of them today, and no HTTP contract between
+# them. This file gives the intended topology (network, service names, DNS)
+# a place to live, but btm-orchestrator/btm-memory/btm-scraper below are
+# placeholders: they build the same backend image and sit idle rather than
+# pretend to serve something that doesn't exist yet.
+#
+# Turning this into a real split needs, per service: its own FastAPI app
+# entrypoint, an HTTP contract for what today are direct Python calls (e.g.
+# agents/planner.py calling agents/memory.py's functions in-process), and the
+# callers on the other side rewritten to make that call over the network
+# instead. Until then, use docker-compose.yml (Phase 1).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-btm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - btm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-btm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [btm-network]
+
+  # The only one of these four that actually does anything today — it's the
+  # real api.main:app, which already includes orchestrator/planner/booking/
+  # memory/scrapers in-process (api/routes/*.py imports and calls them
+  # directly). Everything else the frontend needs is reachable through here.
+  btm-api:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-btm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # BTM_APP_DB_PASSWORD: from ./backend/.env (env_file above) — see
+      # docker-compose.yml's comment on this same variable.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      btm-network:
+        # frontend/nginx.conf hardcodes proxy_pass http://backend:8000 — this
+        # alias lets the same frontend image work unmodified against both
+        # compose files, even though this one names the service btm-api.
+        aliases: [backend]
+
+  # Placeholder — builds the same image but never becomes a real service
+  # until agents/orchestrator.py (+planner.py, booking.py) gets its own
+  # FastAPI app and btm-api starts calling it over HTTP instead of importing
+  # it directly.
+  btm-orchestrator:
+    build: ./backend
+    command: ["sh", "-c", "echo 'btm-orchestrator: placeholder, no standalone ASGI app yet — orchestrator/planner/booking still run in-process inside btm-api' && sleep infinity"]
+    networks: [btm-network]
+
+  # Placeholder — same story as btm-orchestrator, for agents/memory.py.
+  btm-memory:
+    build: ./backend
+    command: ["sh", "-c", "echo 'btm-memory: placeholder, no standalone ASGI app yet — memory still runs in-process inside btm-api' && sleep infinity"]
+    networks: [btm-network]
+
+  # Placeholder — same story, for scrapers/flights.py + scrapers/airbnb.py.
+  btm-scraper:
+    build: ./backend
+    command: ["sh", "-c", "echo 'btm-scraper: placeholder, no standalone ASGI app yet — scrapers still run in-process inside btm-api' && sleep infinity"]
+    networks: [btm-network]
+
+  btm-frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - btm-api
+    networks: [btm-network]
+
+networks:
+  btm-network:
+    driver: bridge
+
+volumes:
+  btm_pgdata:
